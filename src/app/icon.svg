@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="gp-shield-grad" x1="6" y1="4" x2="26" y2="28" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="55%" stop-color="#0070E0" />
+      <stop offset="100%" stop-color="#003087" />
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="#0B1120" />
+  <path
+    d="M16 4.5L7 8.4V15.3C7 21.1 10.8 26.2 16 27.8C21.2 26.2 25 21.1 25 15.3V8.4L16 4.5Z"
+    fill="url(#gp-shield-grad)"
+    fill-opacity="0.18"
+    stroke="#38BDF8"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M12.2 16.2L14.8 18.8L20.2 13.1"
+    stroke="#FFFFFF"
+    stroke-width="2.4"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

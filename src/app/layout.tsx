@@ -21,9 +21,29 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NovaTech — Precision Hardware & Cloud Credits | PayPal GhostPass",
+  title: "PayPal GhostPass — Zero-Trust Payments for Autonomous AI Agents",
   description:
-    "Flagship developer hardware, studio audio, and cloud compute storefront powered by PayPal GhostPass zero-PII agentic checkout.",
+    "Programmable spend-capped payment passes, Zero-PII LLM context vaulting, prompt-injection firewall, and live PayPal Sandbox Orders v2 settlement via MCP.",
+  applicationName: "PayPal GhostPass",
+  keywords: [
+    "PayPal GhostPass",
+    "Agentic Commerce",
+    "PayPal Orders v2",
+    "Gemini 2.5",
+    "Model Context Protocol",
+    "Zero-PII",
+    "AI Guardrail",
+  ],
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    shortcut: "/icon.svg",
+  },
+  openGraph: {
+    title: "PayPal GhostPass — Zero-Trust Payments for Autonomous AI Agents",
+    description:
+      "Eliminate 403 merchant bot-blocks, PII leaks, and prompt injections with spend-capped PayPal passes.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

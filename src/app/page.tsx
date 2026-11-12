@@ -751,11 +751,7 @@ export default function PayPalGhostPassApp() {
   }
 
   return (
-    <div
-      className={`relative flex min-h-screen flex-col ${
-        activeView === "overview" ? "bg-[#060B19]" : "bg-[#FAFAFA]"
-      }`}
-    >
+    <div className="relative flex min-h-screen flex-col bg-[#FAFAFA]">
       <AppShellHeader
         activeView={activeView}
         onChangeView={handleChangeView}
