@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { AuditTransaction, DEFAULT_MANDATE } from "@/data/catalog";
+import {
+  AuditTransaction,
+  DEFAULT_MANDATE,
+  PRODUCT_CATALOG,
+  Product,
+} from "@/data/catalog";
 import { runGatekeeperAudit } from "@/lib/agents/gatekeeperAgent";
 import {
   resolveCatalogProductById,
@@ -51,11 +56,30 @@ function normalizeMandate(
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<AgentExecuteRequest>;
-    const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+    const customItem =
+      body.customItem &&
+      typeof body.customItem.title === "string" &&
+      body.customItem.title.trim() &&
+      Number.isFinite(Number(body.customItem.price)) &&
+      Number(body.customItem.price) > 0
+        ? {
+            title: body.customItem.title.trim(),
+            price: Number(body.customItem.price),
+            category: body.customItem.category,
+            merchant: body.customItem.merchant,
+            hiddenInjection: body.customItem.hiddenInjection,
+          }
+        : undefined;
+
+    const prompt =
+      (typeof body.prompt === "string" ? body.prompt.trim() : "") ||
+      (customItem
+        ? `Buy ${customItem.title} ($${customItem.price.toFixed(2)})`
+        : "");
 
     if (!prompt) {
       return NextResponse.json(
-        { error: "INVALID_REQUEST", message: "prompt is required" },
+        { error: "INVALID_REQUEST", message: "prompt or customItem is required" },
         { status: 400 }
       );
     }
@@ -69,10 +93,12 @@ export async function POST(request: Request) {
       prompt,
       sessionId,
       mode,
+      customItem,
       skipLlm: Boolean(body.skipLlm),
     });
 
-    const selectedProduct = resolveCatalogProductById(cart.productId);
+    const selectedProduct =
+      resolveCatalogProductById(cart.productId) ?? cart.customProduct;
     if (!selectedProduct) {
       return NextResponse.json(
         { error: "PRODUCT_NOT_FOUND", message: "No catalog item matched" },
@@ -80,10 +106,24 @@ export async function POST(request: Request) {
       );
     }
 
-    const injectedProduct =
-      cart.injectedCartItems.length > 0
-        ? resolveCatalogProductById(cart.injectedCartItems[0].productId) ?? null
-        : null;
+    const injectedCartFirst = cart.injectedCartItems[0];
+    const injectedProduct: Product | null = injectedCartFirst
+      ? resolveCatalogProductById(injectedCartFirst.productId) ?? {
+          id: injectedCartFirst.productId,
+          sku: "CUS-INJ-01",
+          name: injectedCartFirst.title,
+          brand: selectedProduct.brand,
+          category: injectedCartFirst.category,
+          price: injectedCartFirst.price,
+          rating: 0,
+          reviewsCount: 0,
+          description: "Injected adversarial item",
+          specs: [],
+          imageUrl: PRODUCT_CATALOG[0].imageUrl,
+          imageAlt: injectedCartFirst.title,
+          isGiftCard: true,
+        }
+      : null;
 
     // Standard Unverified Bot skips Gatekeeper protection and attaches raw PII
     if (mode === "STANDARD_BOT") {

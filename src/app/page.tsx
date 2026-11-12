@@ -21,6 +21,7 @@ import {
 import {
   AgentExecuteResponse,
   CheckoutResponse,
+  CustomItemInput,
 } from "@/types/ghostpass";
 import { AppShellHeader, AppViewMode } from "@/components/AppShellHeader";
 import { ControlPlaneView } from "@/components/ControlPlaneView";
@@ -323,8 +324,20 @@ export default function PayPalGhostPassApp() {
     }
   }
 
-  async function handleRunAgent(promptOverride?: string) {
-    const activePrompt = (promptOverride ?? prompt).trim();
+  async function handleRunAgent(
+    promptOverride?: string,
+    customItem?: CustomItemInput
+  ) {
+    const fallbackCustomPrompt =
+      customItem && customItem.title.trim()
+        ? `Buy ${customItem.title.trim()} ($${Number(customItem.price).toFixed(
+            2
+          )})`
+        : "";
+    const activePrompt = (
+      promptOverride ??
+      (fallbackCustomPrompt || prompt)
+    ).trim();
     if (!activePrompt || isRunning || isSettlingOverride) return;
 
     const currentRunId = ++runIdRef.current;
@@ -355,6 +368,7 @@ export default function PayPalGhostPassApp() {
           prompt: activePrompt,
           mode: mode === "standard_bot" ? "STANDARD_BOT" : "GHOSTPASS",
           sessionId: sessionApiKey,
+          customItem,
           mandate: {
             id: currentMandate.id,
             ruleText: currentMandate.ruleText,
@@ -460,6 +474,14 @@ export default function PayPalGhostPassApp() {
           ghostPassHeader: execData.signature,
           agentContextPayload:
             execData.exposedPiiContext ?? execData.redactedContext,
+          customProduct: execData.selectedProduct.id.startsWith("custom-")
+            ? {
+                title: execData.selectedProduct.name,
+                price: execData.selectedProduct.price,
+                category: execData.selectedProduct.category,
+                merchant: execData.selectedProduct.brand,
+              }
+            : undefined,
         }),
       });
 
@@ -571,6 +593,14 @@ export default function PayPalGhostPassApp() {
           humanOverrideToken: simulation.approvalToken,
           auditEventId: simulation.pendingOverrideTransactionId ?? undefined,
           agentContextPayload: simulation.agentContextPreview,
+          customProduct: simulation.selectedProduct.id.startsWith("custom-")
+            ? {
+                title: simulation.selectedProduct.name,
+                price: simulation.selectedProduct.price,
+                category: simulation.selectedProduct.category,
+                merchant: simulation.selectedProduct.brand,
+              }
+            : undefined,
         }),
       });
 

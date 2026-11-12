@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { AuditTransaction } from "@/data/catalog";
+import { AuditTransaction, PRODUCT_CATALOG, Product } from "@/data/catalog";
 import { resolveCatalogProductById } from "@/lib/agents/shoppingAgent";
 import {
   consumeMandateToken,
@@ -72,8 +72,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const product = body?.productId
+    const catalogProduct = body?.productId
       ? resolveCatalogProductById(body.productId)
+      : undefined;
+
+    const customBody = body?.customProduct;
+    const isCustomProduct =
+      !catalogProduct &&
+      typeof body?.productId === "string" &&
+      body.productId.startsWith("custom-") &&
+      customBody &&
+      typeof customBody.title === "string" &&
+      customBody.title.trim().length > 0 &&
+      Number.isFinite(Number(customBody.price)) &&
+      Number(customBody.price) > 0;
+
+    const product: Product | undefined = catalogProduct
+      ? catalogProduct
+      : isCustomProduct
+      ? {
+          id: body.productId as string,
+          sku: "CUSTOM-MCP",
+          name: customBody.title.trim(),
+          brand: customBody.merchant?.trim() || "Custom Merchant",
+          category: "Accessories",
+          price: Number(Number(customBody.price).toFixed(2)),
+          rating: 4.8,
+          reviewsCount: 1,
+          description: "Custom checkout item",
+          specs: [],
+          imageUrl: PRODUCT_CATALOG[0].imageUrl,
+          imageAlt: customBody.title.trim(),
+        }
       : undefined;
 
     if (!product) {

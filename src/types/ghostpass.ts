@@ -13,6 +13,14 @@ export interface MandateConfig {
   allowedCategories?: ProductCategory[];
 }
 
+export interface CustomItemInput {
+  title: string;
+  price: number;
+  category?: ProductCategory | string;
+  merchant?: string;
+  hiddenInjection?: string;
+}
+
 export interface AgentCartItem {
   productId: string;
   title: string;
@@ -33,6 +41,7 @@ export interface ShoppingAgentResult {
   injectedCartItems: AgentCartItem[];
   reasoning: string;
   usedModel: string;
+  customProduct?: Product;
 }
 
 export type GatekeeperDecision = "AUTO_APPROVE" | "REQUIRE_HUMAN" | "BLOCK";
@@ -60,6 +69,7 @@ export interface AgentExecuteRequest {
   prompt: string;
   mode: AgentExecutionMode | "standard_bot" | "ghostpass";
   sessionId?: string;
+  customItem?: CustomItemInput;
   mandate?: Partial<MandateConfig> & {
     maxPerTransaction?: number;
     dailyLimit?: number;
@@ -99,6 +109,12 @@ export interface CheckoutRequest {
   isManualHumanCheckout?: boolean;
   agentContextPayload?: Record<string, string>;
   auditEventId?: string;
+  customProduct?: {
+    title: string;
+    price: number;
+    category?: ProductCategory | string;
+    merchant?: string;
+  };
 }
 
 export interface PayPalSettleRequest {

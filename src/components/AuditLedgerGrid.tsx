@@ -159,39 +159,44 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
       {
         headerName: "Merchant & Item",
         field: "requestedProductName",
-        minWidth: 210,
-        flex: 1.9,
+        minWidth: 200,
+        flex: 1.85,
         tooltipField: "reason",
-        valueFormatter: (p) =>
-          p.value ? `NovaTech · ${String(p.value)}` : "NovaTech Store",
+        valueFormatter: (p) => {
+          const val = String(p.value ?? "");
+          if (!val) return "NovaTech Store";
+          return p.data?.requestedProductId?.startsWith("custom-")
+            ? `Custom · ${val}`
+            : `NovaTech · ${val}`;
+        },
       },
       {
         headerName: "Amount",
         field: "totalAmount",
-        minWidth: 92,
-        flex: 0.75,
+        minWidth: 88,
+        flex: 0.72,
         cellClass: "font-mono font-semibold text-[#09090B]",
         valueFormatter: (p) => `$${Number(p.value ?? 0).toFixed(2)}`,
       },
       {
-        headerName: "Guardrail Verdict",
+        headerName: "Verdict",
         field: "verdict",
-        minWidth: 145,
-        flex: 1.1,
+        minWidth: 136,
+        flex: 1.05,
         cellRenderer: VerdictCellRenderer,
       },
       {
         headerName: "PII Leaked",
         field: "piiExposedPct",
-        minWidth: 94,
-        flex: 0.75,
+        minWidth: 90,
+        flex: 0.72,
         cellRenderer: PiiCellRenderer,
       },
       {
         headerName: "PayPal Order ID",
         field: "paypalOrderId",
         minWidth: 195,
-        flex: 1.45,
+        flex: 1.5,
         cellRenderer: PayPalOrderCellRenderer,
       },
     ],
@@ -209,7 +214,7 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
 
   if (transactions.length === 0) {
     return (
-      <div className="flex h-[260px] items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50/70">
+      <div className="flex h-[280px] items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50/70">
         <span className="font-mono text-xs text-zinc-500">
           No transactions yet
         </span>
@@ -221,7 +226,7 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
     <div
       role="region"
       aria-label="Transaction Ledger"
-      className="h-[260px] w-full overflow-hidden rounded-xl border border-zinc-200"
+      className="h-[280px] w-full overflow-hidden rounded-xl border border-zinc-200"
     >
       <AgGridReact<AuditTransaction>
         theme={compactFintechGridTheme}
