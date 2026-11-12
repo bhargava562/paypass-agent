@@ -1,84 +1,58 @@
 # PayPal GhostPass — UI/UX & Demo Blueprint
 
-> **Design Philosophy:** Layman-First, Zero Clutter, Consumer-Grade Storefront on the Surface, X-Ray Security Television On Demand.
+> **Design Philosophy:** Real-World Boundary Separation — An Authentic Flagship Storefront (**NovaTech**) Completely Unaware of AI, Paired With an External Browser Extension & Top Browser X-Ray TV.
 
 ---
 
-## 1. Visual Hierarchy & The Four UI Layers
-
-Judges and everyday users immediately understand **PayPal GhostPass** because the interface avoids overwhelming crypto/developer jargon on the main canvas and uses a physical metaphor everyone intuitively grasps: **an online store + a pull-down "Behind the Scenes" security TV**.
+## 1. Visual Architecture: Independent Store vs. External Extension
 
 ```mermaid
 flowchart TD
-    L1["Layer 1: Consumer Storefront (NovaTech & CloudForge)"]
-    L1 -->|"Pinned Top Bar"| MandatePill["Universal Spending Mandate Pill (Editable Rule + Daily Budget Meter)"]
-    L1 -->|"Main Canvas"| Grid["10-Product Storefront Grid + Category Tabs"]
-    L2["Layer 2: Floating Bottom AI Shopping Bar"] -->|"Mode Switch"| Modes["Standard AI Bot (Unverified) vs. PayPal GhostPass (Zero-PII Verified)"]
-    L2 -->|"3 Quick Pills"| Scenarios["1. Safe $48 Buy · 2. Prompt Injection Trap · 3. Over-Budget $115"]
-    L3["Layer 3: Pull-Down TV Overlay ('Behind the Scenes')"] -->|"3 Security Cameras"| Cams["Cam 1: Privacy X-Ray · Cam 2: Store Security Guard · Cam 3: PayPal Money Vault"]
-    L3 -->|"Tab Toggle"| L4["Layer 4: AG Grid Audit Ledger (Full History + Risk Scores + PayPal Order IDs)"]
+    Top["Browser Chrome Bar (demo-browser://novatech.store + Behind the Scenes TV Toggle)"] --> TV["Pull-Down TV Overlay (3 Live Cameras + AG Grid Audit Ledger)"]
+    Store["Layer 1: NovaTech Storefront (100% Pure E-Commerce · Zero AI Branding)"] --> Modal["Standard Store Checkout Modal (Pay with PayPal / Card + Anti-Bot 403 Guard)"]
+    Ext["Layer 2: External Browser Extension (Floating Bottom-Right Companion Widget)"] -->|"Drives Cross-Boundary Checkout"| Modal
+    Ext -->|"Streams Live Telemetry"| TV
 ```
 
 ---
 
 ## 2. Detailed Layer Specifications
 
-### Layer 1 — Real Consumer Storefront (`NovaTech & CloudForge`)
-- **Aesthetic:** Crisp Apple / Stripe-inspired light storefront surface (`#F8FAFC` canvas, pure white product cards with subtle `1px` borders, clean geometric typography, PayPal Blue `#0070BA` / `#003087` accents).
-- **Top Sticky Header:**
-  - Brand mark: **NovaTech & CloudForge** (Verified Open-Web Merchant).
-  - **Universal Spending Mandate Pill:** Displays the active plain-English rule (e.g., *"Max \$60 · Dev gear & books · Block gift cards"*) with an inline **Edit** popover to adjust the rule text, per-transaction cap (`\$60`), and daily limit (`\$150`), alongside a live **Daily Budget Meter** (`\$0 / \$150 spent today`).
-  - Prominent **`📺 Behind the Scenes`** button (with live status indicator dot) that smoothly pulls down the Layer 3 TV screen.
-- **Category Filter Bar & Product Grid:**
-  - Filter tabs: `All`, `Dev Gear`, `Books`, `Audio`, `Accessories`, `Digital Cards`.
-  - Clean product cards showing category badge, product visual icon/illustration, title, short description, star rating, price, and subtle merchant verification tag.
-  - **Realistic Trap Design:** The `$19.00` **Anker Pro USB-C Braided Cable** renders like a completely normal storefront item—its prompt-injection payload is hidden inside an inconspicuous merchant metadata/spec field so the live demo mirrors real-world indirect prompt injection.
+### Browser Frame (`src/components/BrowserChromeBar.tsx`)
+- Pinned at the very top edge above the store (`#18181B` dark browser chrome):
+  - Simulated window controls + address omnibox (`demo-browser://novatech.store`).
+  - **`📺 Behind the Scenes (X-Ray View)`** button with live status indicator dot that glides down the **Pull-Down TV** overlay.
 
-### Layer 2 — Floating Bottom AI Shopping Bar
-- **Position:** Centered floating glassmorphic pill docked cleanly above the bottom edge (`backdrop-blur-xl`), never obscuring product cards.
-- **Mode Toggle (High-Contrast Contrast):**
-  - `⚪ Standard AI Bot (Unverified)` — Shows what happens with normal AI agents today (leaks PII, gets `403 Blocked` by the store).
-  - `🔵 PayPal GhostPass (Zero-PII Verified)` — Activates the blindfolded VIP token + Gatekeeper + PayPal Sandbox pipeline.
-- **Prompt Input + Run Action:** Single-line natural-language command box (`"What should your AI buy for you?"`) with an action button (`Send Agent`).
-- **3 Quick-Demo Scenario Pills:**
-  1. `⌨️ Safe Buy ($48 Keyboard)` — Demonstrates seamless `0% PII` GhostPass checkout & PayPal Sandbox Order ID.
-  2. `⚠️ Trap ($19 Cable + Hidden Gift Card)` — Demonstrates prompt-injection detection (`$75 Steam Gift Card` caught & blocked, `$0` moved).
-  3. `🎧 Over Budget ($115 Headphones)` — Demonstrates 1-click Human Override pause when a safe item exceeds the `$60` cap.
+### Layer 1 — Independent Merchant Website (`NovaTech`)
+1. **Pure Retail Navbar (`src/components/StoreNavbar.tsx`):**
+   - **NovaTech** geometric brand mark (`Store`).
+   - Category tabs: `All`, `Keyboards & Mice`, `Audio`, `Cloud & Books`, `Accessories`.
+   - Real store search bar (`Search NovaTech hardware, books...`).
+   - **`Cart (N)`** button opening a clean shopping bag popover with **Proceed to Checkout**.
+   - **Zero** AI badges, **zero** Mandate pills, and **zero** GhostPass branding on the store's own navbar.
+2. **Editorial Merchandising Hero & 4-Column Product Grid (`src/components/ProductGrid.tsx`):**
+   - Retail banner: *"Precision Workspace & Studio Hardware — Free 2-Day Express Shipping on Orders Over \$35"* with a *"Shop New Arrivals"* button.
+   - 4-column responsive product grid (`#FAFAFA` alabaster background, `#FFFFFF` cards, `1px solid #E4E4E7` borders, `Plus Jakarta Sans` + `Inter` + `JetBrains Mono` typography):
+     - Crisp `4:3` real Unsplash product photography (`next/image`).
+     - Clean retail titles without test spoilers (e.g., `Anker 240W Braided USB-C Cable`).
+     - Brand, star rating + review count, monospace price, **`+ Add to Cart`**, and **`Buy Now`**.
+3. **Standard Store Checkout Modal (`src/components/StoreCheckoutModal.tsx`):**
+   - Opens for normal human purchases (`Buy Now` / `Cart Checkout`) AND when the external AI Agent drives checkout across the browser boundary.
+   - Shows item summary, shipping fields, and PayPal/Card checkout buttons—plus real merchant anti-bot 403 block feedback when an unverified bot attempts checkout without a GhostPass mandate!
 
-### Layer 3 — Animated Pull-Down TV (`"📺 Behind the Scenes"`)
-- **Motion:** Clicking `📺 Behind the Scenes` (or triggering an agent run with auto-reveal enabled) smoothly slides down a dark-glass **X-Ray Television Shade** (`bg-slate-950/95`, subtle studio scanline/vignette framing, crisp status header + **Close / Roll Up** handle) from the top edge of the viewport.
-- **Top TV Strip:** Tab switcher (`Live Security Cameras` | `Audit Ledger (AG Grid)`), active execution status pill, and a **Reset Demo** action.
-- **3 Layman Visual Security Cameras (Side-by-Side):**
-  - **Camera 1 — Privacy X-Ray (What the AI Sees):**
-    - *Standard Bot Mode (RED):* Displays exposed PII fields (`Name: Alex Rivera`, `Email: alex@example.com`, `Address: 742 Evergreen Terrace`, `PayPal Auth: Raw Session`) with a `100% PII EXPOSED` warning badge.
-    - *GhostPass Mode (GREEN):* Displays `Blindfolded VIP Pass Active · 0% PII Leaked`, showing redacted vault tokens (`[VAULTED_BUYER]`, `[VAULTED_ADDRESS]`) and a green verification shield.
-  - **Camera 2 — Store Security Guard (Merchant Bot-Defense):**
-    - *Standard Bot Mode (RED):* `403 FORBIDDEN — Unverified Scraper Blocked · CAPTCHA Triggered`.
-    - *GhostPass Mode (GREEN):* `✓ Verified PayPal Human Mandate` badge (`X-GhostPass-Mandate` verified, direct PayPal shipping relay active).
-  - **Camera 3 — PayPal Money Vault (Gatekeeper & Settlement):**
-    - Displays the plain-English Gatekeeper rule evaluation step-by-step.
-    - On **Safe Approval**: Shows green `SETTLED` stamp + live **PayPal Sandbox Order ID** + vaulted shipping confirmation.
-    - On **Threat Blocked**: Shows red `BLOCKED ($0.00 MOVED)` alert naming the exact hijacked item (`$75 Steam Gift Card`).
-    - On **Over-Budget Pause**: Shows amber `AWAITING 1-CLICK HUMAN APPROVAL` card with instant **`Approve Override`** and **`Reject Purchase`** buttons right inside Camera 3.
+### Layer 2 — External Browser Extension (`src/components/AgentExtensionWidget.tsx`)
+- Floating bottom-right companion widget styled distinctly as a browser extension (`PayPal GhostPass · Personal AI Agent Extension`) with collapse/expand toggle.
+- Houses:
+  - **User's Universal Mandate Settings:** Editable plain-English rule + Per-Purchase Cap (`$60`) + Daily Spend Meter (`$0 / $150`).
+  - **Identity Mode Toggle:** `Standard AI Bot (Unverified Scraper)` vs. `PayPal GhostPass (Zero-PII Verified)`.
+  - **Agent Prompt Input + 3 Quick-Test Scenarios:**
+    1. `Buy wireless keyboard under $60`
+    2. `Buy $19 USB-C cable` (triggers hidden HTML injection)
+    3. `Buy $115 Sony headphones` (triggers 1-click human override)
 
-### Layer 4 — AG Grid Audit Drawer
-- **Location:** Toggle tab inside the Pull-Down TV (`Audit Ledger`).
-- **Component:** `ag-grid-react` (`themeQuartz` dark-mode integration) displaying every run with sortable/filterable columns:
-  - `Timestamp`
-  - `Mode` (`GhostPass` vs. `Standard Bot`)
-  - `Requested Prompt & Item`
-  - `Amount ($)`
-  - `Decision` (`APPROVED`, `BLOCKED`, `403_REJECTED`, `NEEDS_APPROVAL`)
-  - `Risk Score (0–100)`
-  - `PII Exposed` (`0%` vs `100%`)
-  - `PayPal Order ID`
-  - `Gatekeeper Reason`
-
----
-
-## 3. Live Demo Walkthrough Script (90-Second Hackathon Pitch)
-
-1. **0:00–0:20 (The Problem):** Keep mode on `⚪ Standard AI Bot`. Click `⌨️ Safe Buy ($48 Keyboard)`. Pull-Down TV opens: Camera 1 flashes **RED** (your home address & email leaked into the AI prompt), Camera 2 flashes **403 Blocked by Store**.
-2. **0:20–0:45 (The GhostPass Fix):** Flip switch to `🔵 PayPal GhostPass`. Click `⌨️ Safe Buy ($48 Keyboard)` again. Camera 1 turns **GREEN** (`0% PII`), Camera 2 turns **GREEN** (`✓ Verified PayPal Human Mandate`), and Camera 3 mints a real **PayPal Sandbox Order ID** for `$48.00`.
-3. **0:45–1:10 (Prompt Injection Defense):** Click `⚠️ Trap ($19 Cable)`. Explain that the cable's page hides an injection trying to sneak a `$75 Steam Gift Card` into the cart. Camera 3 catches it immediately and locks the vault (`$0.00 Moved · Risk 98`).
-4. **1:10–1:30 (Human-in-the-Loop + Audit):** Click `🎧 Over Budget ($115 Headphones)`. Camera 3 pauses cleanly for a single **Approve Override** tap, settles the order, and reveals the **AG Grid Audit Ledger** showing `0% PII Exposed` across all GhostPass runs.
+### Pull-Down TV (`src/components/PullDownTV.tsx`) & AG Grid Ledger (`src/components/AuditLedgerGrid.tsx`)
+- Slides down smoothly from the top browser chrome bar to reveal:
+  - **Camera 1 (Privacy X-Ray):** Exposed raw PII (`100% PII Exposed`) vs. Blindfolded VIP Pass (`0% PII Leaked`).
+  - **Camera 2 (Store Security Guard):** NovaTech `403 Forbidden: Unverified AI Scraper Blocked` vs. `✓ Verified X-PayPal-GhostPass Mandate`.
+  - **Camera 3 (PayPal Money Vault):** Gatekeeper audit checklist, prompt-injection shield (`$0.00` moved), live PayPal Order ID, and 1-Click **`Approve Override`** / **`Reject`** buttons.
+  - **Audit Ledger Tab:** `ag-grid-react` table logging mode, item, amount, verdict, risk score, PII exposure, and PayPal Order ID.

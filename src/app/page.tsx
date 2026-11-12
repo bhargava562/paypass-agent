@@ -18,9 +18,18 @@ import {
   writeClientMandate,
   writeClientTransactions,
 } from "@/lib/clientStorage";
-import { MandateHeader } from "@/components/MandateHeader";
+import {
+  AgentExecuteResponse,
+  CheckoutResponse,
+} from "@/types/ghostpass";
+import { BrowserChromeBar } from "@/components/BrowserChromeBar";
+import { StoreNavbar } from "@/components/StoreNavbar";
 import { ProductGrid } from "@/components/ProductGrid";
-import { AIShopperDrawer } from "@/components/AIShopperDrawer";
+import {
+  CheckoutDriver,
+  StoreCheckoutModal,
+} from "@/components/StoreCheckoutModal";
+import { AgentExtensionWidget } from "@/components/AgentExtensionWidget";
 import { PullDownTV } from "@/components/PullDownTV";
 
 const INITIAL_SIMULATION: SimulationRunState = {
@@ -36,6 +45,8 @@ const INITIAL_SIMULATION: SimulationRunState = {
   injectedProduct: null,
   proposedTotal: 0,
   paypalOrderId: null,
+  verificationHash: null,
+  approvalToken: null,
   shippingRelayLabel: "PayPal Vault Standby",
   gatekeeperNotes: [
     "• Ready to audit cart against your Universal Spending Mandate.",
@@ -50,91 +61,6 @@ const INITIAL_SIMULATION: SimulationRunState = {
   pendingOverrideTransactionId: null,
 };
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function makeUniqueId(prefix: string): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function buildSimOrderId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `SBX-GP-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
-  }
-  return `SBX-GP-${Math.random().toString(36).slice(2, 10).toUpperCase().padEnd(8, "0")}`;
-}
-
-function matchProductFromPrompt(promptText: string): Product {
-  const q = promptText.toLowerCase();
-
-  // 1. Exact product name, SKU, or ID match first
-  const exact = PRODUCT_CATALOG.find(
-    (item) =>
-      q.includes(item.name.toLowerCase()) ||
-      q.includes(item.sku.toLowerCase()) ||
-      q.includes(item.id.toLowerCase())
-  );
-  if (exact) return exact;
-
-  // 2. Specific disambiguating keywords before generic ones
-  if (q.includes("hub") || q.includes("caldigit") || q.includes("thunderbolt")) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-hub-ts4") ??
-      PRODUCT_CATALOG[1]
-    );
-  }
-  if (q.includes("cable") || q.includes("braided") || /\b19\b/.test(q) || q.includes("usb-c")) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-cable-trap") ??
-      PRODUCT_CATALOG[3]
-    );
-  }
-  if (
-    q.includes("headphone") ||
-    q.includes("xm5") ||
-    q.includes("sony") ||
-    /\b115\b/.test(q) ||
-    q.includes("audio")
-  ) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-headphones-xm5") ??
-      PRODUCT_CATALOG[2]
-    );
-  }
-  if (q.includes("gift") || q.includes("steam") || /\b75\b/.test(q)) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-gift-steam75") ??
-      PRODUCT_CATALOG[7]
-    );
-  }
-  if (q.includes("nvidia") || q.includes("h100") || q.includes("gpu") || q.includes("compute")) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-gpu-h100") ??
-      PRODUCT_CATALOG[4]
-    );
-  }
-  if (q.includes("ddia") || q.includes("data-intensive") || q.includes("book")) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-book-ddia") ??
-      PRODUCT_CATALOG[5]
-    );
-  }
-  if (q.includes("mouse") || q.includes("mx master") || q.includes("logitech")) {
-    return (
-      PRODUCT_CATALOG.find((p) => p.id === "prod-mouse-mx3s") ??
-      PRODUCT_CATALOG[6]
-    );
-  }
-
-  return (
-    PRODUCT_CATALOG.find((p) => p.id === "prod-kbd-q1") ?? PRODUCT_CATALOG[0]
-  );
-}
-
 async function syncServerState(payload: Record<string, unknown>) {
   try {
     await fetch("/api/state", {
@@ -147,18 +73,20 @@ async function syncServerState(payload: Record<string, unknown>) {
   }
 }
 
-export default function GhostPassStorefrontPage() {
+export default function NovaTechStoreWithGhostPassPage() {
   const [mandate, setMandate] = useState<SpendingMandate>(DEFAULT_MANDATE);
   const [transactions, setTransactions] = useState<AuditTransaction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<
     "All" | ProductCategory
   >("All");
+  const [searchQuery, setSearchQuery] = useState("");
   const [cartItems, setCartItems] = useState<Product[]>([]);
-  const [mode, setMode] = useState<AgentMode>("ghostpass");
-  const [prompt, setPrompt] = useState(
-    "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60"
+  const [checkoutDriver, setCheckoutDriver] = useState<CheckoutDriver | null>(
+    null
   );
-  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+
+  const [mode, setMode] = useState<AgentMode>("ghostpass");
+  const [prompt, setPrompt] = useState("Buy wireless keyboard under $60");
   const [tvOpen, setTvOpen] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [isSettlingOverride, setIsSettlingOverride] = useState(false);
@@ -167,16 +95,34 @@ export default function GhostPassStorefrontPage() {
 
   const promptInputRef = useRef<HTMLInputElement | null>(null);
   const mandateRef = useRef<SpendingMandate>(mandate);
-  const transactionsRef = useRef<AuditTransaction[]>(transactions);
   const runIdRef = useRef(0);
 
   useEffect(() => {
     mandateRef.current = mandate;
   }, [mandate]);
 
-  useEffect(() => {
-    transactionsRef.current = transactions;
-  }, [transactions]);
+  async function refreshFromServerState() {
+    try {
+      const res = await fetch("/api/state", { cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        backend?: string;
+        mandate?: SpendingMandate;
+        transactions?: AuditTransaction[];
+      };
+      if (data.mandate) {
+        setMandate(data.mandate);
+        mandateRef.current = data.mandate;
+        writeClientMandate(data.mandate);
+      }
+      if (Array.isArray(data.transactions)) {
+        setTransactions(data.transactions);
+        writeClientTransactions(data.transactions);
+      }
+    } catch {
+      // Fallback gracefully to current state
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -206,11 +152,17 @@ export default function GhostPassStorefrontPage() {
             writeClientTransactions(data.transactions);
           }
         } else {
-          if (!localMandate && data.mandate) {
+          // If clientStorage already has local edits/history, sync them up once to server memory
+          if (localMandate && (!data.transactions || data.transactions.length === 0)) {
+            void syncServerState({ action: "save_mandate", mandate: localMandate });
+          } else if (!localMandate && data.mandate) {
             setMandate(data.mandate);
           }
           if (!localTxs && Array.isArray(data.transactions)) {
             setTransactions(data.transactions);
+          } else if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+            setTransactions(data.transactions);
+            writeClientTransactions(data.transactions);
           }
         }
       } catch {
@@ -231,39 +183,8 @@ export default function GhostPassStorefrontPage() {
     setMandate(saved);
     mandateRef.current = saved;
     writeClientMandate(saved);
-    void syncServerState({ action: "save_mandate", mandate: saved });
+    await syncServerState({ action: "save_mandate", mandate: saved });
     return saved;
-  }
-
-  async function persistTransaction(
-    tx: AuditTransaction
-  ): Promise<AuditTransaction[]> {
-    const next = [
-      tx,
-      ...transactionsRef.current.filter((item) => item.id !== tx.id),
-    ].slice(0, 100);
-    setTransactions(next);
-    transactionsRef.current = next;
-    writeClientTransactions(next);
-    void syncServerState({ action: "append_tx", tx });
-    return next;
-  }
-
-  async function patchTransaction(
-    txId: string,
-    patch: Partial<AuditTransaction>
-  ): Promise<AuditTransaction[]> {
-    const target = transactionsRef.current.find((item) => item.id === txId);
-    if (!target) return transactionsRef.current;
-    const updated: AuditTransaction = { ...target, ...patch };
-    const next = transactionsRef.current.map((item) =>
-      item.id === txId ? updated : item
-    );
-    setTransactions(next);
-    transactionsRef.current = next;
-    writeClientTransactions(next);
-    void syncServerState({ action: "update_tx", txId, patch });
-    return next;
   }
 
   function handleAddToCart(product: Product) {
@@ -278,20 +199,36 @@ export default function GhostPassStorefrontPage() {
     setCartItems([]);
   }
 
-  function handleCheckoutCartWithAi() {
-    if (cartItems.length === 0) return;
-    const first = cartItems[0];
-    const buyPrompt = `Buy ${first.name} ($${first.price.toFixed(2)})`;
-    setPrompt(buyPrompt);
-    setAiDrawerOpen(true);
-    void handleRunAgent(buyPrompt);
+  function handleHumanBuyNow(product: Product) {
+    setCheckoutDriver({ type: "human", items: [product] });
   }
 
-  function handleAiBuyProduct(product: Product) {
-    const buyPrompt = `Buy ${product.name} ($${product.price.toFixed(2)})`;
-    setPrompt(buyPrompt);
-    setAiDrawerOpen(true);
-    void handleRunAgent(buyPrompt);
+  function handleOpenCartCheckout() {
+    if (cartItems.length === 0) return;
+    setCheckoutDriver({ type: "human", items: cartItems });
+  }
+
+  function handleHumanPaySuccess(items: Product[]) {
+    if (items[0]) {
+      void fetch("/api/store/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: items[0].id,
+          amount: items.reduce((s, item) => s + item.price, 0),
+          mode: "GHOSTPASS",
+          isManualHumanCheckout: true,
+        }),
+      }).catch(() => undefined);
+    }
+    if (items.length === cartItems.length && items.length > 0) {
+      setCartItems([]);
+    }
+  }
+
+  function updateAgentSimulation(next: SimulationRunState) {
+    setSimulation(next);
+    setCheckoutDriver({ type: "agent", simulation: next });
   }
 
   async function handleRunAgent(promptOverride?: string) {
@@ -300,371 +237,207 @@ export default function GhostPassStorefrontPage() {
 
     const currentRunId = ++runIdRef.current;
     setIsRunning(true);
-    setAiDrawerOpen(false);
-    setTvOpen(true);
 
     try {
       const currentMandate = mandateRef.current;
-      const selected = matchProductFromPrompt(activePrompt);
-      const giftCardTrap =
-        PRODUCT_CATALOG.find((p) => p.id === "prod-gift-steam75") ?? null;
 
-      const standardBotPreview = {
-        buyerName: "Alex Rivera",
-        buyerEmail: "alex.rivera@example.com",
-        shippingAddr: "742 Evergreen Terrace, Austin, TX 78701",
-        authToken: "raw_paypal_session_9f8a21c4",
-      };
-
-      const ghostPassPreview = {
-        buyerName: "[VAULTED_BUYER]",
-        buyerEmail: "[VAULTED_EMAIL]",
-        shippingAddr: "[PAYPAL_DIRECT_RELAY]",
-        authToken: `gp_mandate_${currentMandate.id.slice(-4)}_0pii`,
-      };
-
-      // Stage 1: Agent Browsing
-      setSimulation({
+      // Stage 1: Trigger Blind Shopping Agent + Gatekeeper via /api/agent/execute
+      updateAgentSimulation({
         ...INITIAL_SIMULATION,
         stage: "agent_browsing",
         mode,
         prompt: activePrompt,
         piiExposedPct: mode === "standard_bot" ? 100 : 0,
-        selectedProduct: selected,
-        proposedTotal: selected.price,
-        merchantBadge: "Inspecting Product Catalog...",
+        merchantBadge: "Agent Scanning NovaTech Catalog...",
         shippingRelayLabel:
           mode === "standard_bot"
             ? "Bot Typing Raw Home Address"
             : "PayPal Vault Direct Relay",
         gatekeeperNotes: [
-          `• Agent matched "${selected.name}" ($${selected.price.toFixed(2)}).`,
+          `• Running "${activePrompt}" via Two-Brain Pipeline...`,
           mode === "standard_bot"
-            ? "• Warning: Unverified bot carries full personal identity in prompt."
+            ? "• Warning: Unverified bot attaches raw user PII."
             : "• Blindfolded VIP session active — 0% PII shared with agent.",
         ],
-        agentContextPreview:
-          mode === "standard_bot" ? standardBotPreview : ghostPassPreview,
       });
 
-      await sleep(450);
+      const execResRaw = await fetch("/api/agent/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: activePrompt,
+          mode: mode === "standard_bot" ? "STANDARD_BOT" : "GHOSTPASS",
+          mandate: {
+            id: currentMandate.id,
+            ruleText: currentMandate.ruleText,
+            dailyCap: currentMandate.dailyLimit,
+            spentToday: currentMandate.dailySpent,
+            autoApproveLimit: currentMandate.maxPerTransaction,
+            blockGiftCards: currentMandate.blockGiftCards,
+            blockSubscriptions: currentMandate.blockSubscriptions,
+            allowedCategories: currentMandate.allowedCategories,
+          },
+        }),
+      });
+
       if (runIdRef.current !== currentRunId) return;
 
-      // Standard Bot Mode -> Blocked by Store (403)
-      if (mode === "standard_bot") {
-        setSimulation((prev) => ({
-          ...prev,
-          stage: "merchant_checking",
-          merchantBadge: "Checking Bot Session Headers...",
-        }));
-        await sleep(400);
-        if (runIdRef.current !== currentRunId) return;
-
-        const tx: AuditTransaction = {
-          id: makeUniqueId("tx"),
-          timestamp: new Date().toISOString(),
-          mode: "standard_bot",
-          prompt: activePrompt,
-          requestedProductId: selected.id,
-          requestedProductName: selected.name,
-          cartItems: [
-            {
-              id: selected.id,
-              name: selected.name,
-              price: selected.price,
-              category: selected.category,
-            },
-          ],
-          totalAmount: selected.price,
-          verdict: "403_REJECTED",
-          riskScore: 86,
-          piiExposedPct: 100,
-          merchantStatusCode: 403,
-          paypalOrderId: null,
-          reason:
-            "403 Forbidden: Store blocked unverified scraper bot (No Human Mandate + PII leaked).",
-        };
-
-        await persistTransaction(tx);
-
-        setSimulation((prev) => ({
-          ...prev,
-          stage: "complete",
-          verdict: "403_REJECTED",
-          riskScore: 86,
-          piiExposedPct: 100,
-          merchantStatusCode: 403,
-          merchantBadge: "403 Blocked by Store · CAPTCHA Wall",
-          paypalOrderId: null,
-          gatekeeperNotes: [
-            "✗ Personal name, email & address leaked into bot context.",
-            "✗ Merchant flagged AutoShopperBot scraper -> HTTP 403 Forbidden.",
-            "✓ PayPal Vault untouched ($0.00 moved).",
-          ],
-        }));
-        return;
+      if (!execResRaw.ok) {
+        throw new Error(`Agent execution failed (${execResRaw.status})`);
       }
 
-      // Stage 2: Gatekeeper Auditing (GhostPass Mode)
-      setSimulation((prev) => ({
-        ...prev,
-        stage: "gatekeeper_auditing",
-        gatekeeperNotes: [
-          `• Auditing "${selected.name}" against rule: "${currentMandate.ruleText}"`,
-          "• Scanning merchant DOM metadata for hidden prompt injections...",
-        ],
-      }));
+      const execData = (await execResRaw.json()) as AgentExecuteResponse;
 
-      await sleep(500);
-      if (runIdRef.current !== currentRunId) return;
-
-      // Check Prompt Injection Trap
-      if (selected.hiddenPromptInjection && giftCardTrap) {
-        const hijackedTotal = selected.price + giftCardTrap.price;
-        const tx: AuditTransaction = {
-          id: makeUniqueId("tx"),
-          timestamp: new Date().toISOString(),
-          mode: "ghostpass",
-          prompt: activePrompt,
-          requestedProductId: selected.id,
-          requestedProductName: `${selected.name} (+ Injected ${giftCardTrap.name})`,
-          cartItems: [
-            {
-              id: selected.id,
-              name: selected.name,
-              price: selected.price,
-              category: selected.category,
-            },
-            {
-              id: giftCardTrap.id,
-              name: giftCardTrap.name,
-              price: giftCardTrap.price,
-              category: giftCardTrap.category,
-            },
-          ],
-          totalAmount: hijackedTotal,
-          verdict: "BLOCKED",
-          riskScore: 98,
-          piiExposedPct: 0,
-          merchantStatusCode: 422,
-          paypalOrderId: null,
-          reason: `Prompt Injection Blocked: Hidden HTML directive tried to add $${giftCardTrap.price.toFixed(
-            2
-          )} Steam Gift Card.`,
-        };
-
-        await persistTransaction(tx);
-
-        setSimulation((prev) => ({
-          ...prev,
+      // Branch 1: Gatekeeper BLOCKED (Prompt Injection or Restricted Policy / Daily Cap)
+      if (execData.decision === "BLOCK") {
+        updateAgentSimulation({
+          ...INITIAL_SIMULATION,
           stage: "complete",
+          mode,
+          prompt: activePrompt,
           verdict: "BLOCKED",
-          riskScore: 98,
+          riskScore: execData.riskScore,
           piiExposedPct: 0,
           merchantStatusCode: null,
           merchantBadge: "Checkout Aborted Before Merchant",
-          injectedProduct: giftCardTrap,
-          proposedTotal: hijackedTotal,
+          selectedProduct: execData.selectedProduct,
+          injectedProduct: execData.injectedProduct,
+          proposedTotal: execData.proposedCartTotal,
           paypalOrderId: null,
-          gatekeeperNotes: [
-            `Prompt injection detected inside ${selected.sku} metadata!`,
-            `✗ Agent attempted to add "$75.00 Steam Digital Gift Card" (Total $${hijackedTotal.toFixed(
-              2
-            )}).`,
-            "✓ Gatekeeper locked PayPal Vault instantly ($0.00 moved).",
-          ],
-        }));
+          shippingRelayLabel: "PayPal Vault Locked ($0 Moved)",
+          gatekeeperNotes: execData.gatekeeperNotes,
+          agentContextPreview: execData.redactedContext,
+          pendingOverrideTransactionId: execData.auditEventId ?? null,
+        });
+        await refreshFromServerState();
         return;
       }
 
-      // Check Restricted Categories (Gift Cards, Subscriptions, & allowedCategories)
-      const blockedAsGiftCard =
-        currentMandate.blockGiftCards && Boolean(selected.isGiftCard);
-      const blockedAsSubscription =
-        currentMandate.blockSubscriptions && Boolean(selected.isSubscription);
-      const blockedByCategoryPolicy =
-        !currentMandate.allowedCategories.includes(selected.category);
-
-      if (blockedAsGiftCard || blockedAsSubscription || blockedByCategoryPolicy) {
-        const policyReason = blockedAsGiftCard
-          ? `Policy Blocked: Gift Card "${selected.name}" violates rule blocking gift cards.`
-          : blockedAsSubscription
-          ? `Policy Blocked: Subscription "${selected.name}" violates rule blocking subscriptions.`
-          : `Policy Blocked: Category "${selected.category}" is not in allowed categories.`;
-
-        const tx: AuditTransaction = {
-          id: makeUniqueId("tx"),
-          timestamp: new Date().toISOString(),
-          mode: "ghostpass",
-          prompt: activePrompt,
-          requestedProductId: selected.id,
-          requestedProductName: selected.name,
-          cartItems: [
-            {
-              id: selected.id,
-              name: selected.name,
-              price: selected.price,
-              category: selected.category,
-            },
-          ],
-          totalAmount: selected.price,
-          verdict: "BLOCKED",
-          riskScore: 82,
-          piiExposedPct: 0,
-          merchantStatusCode: 422,
-          paypalOrderId: null,
-          reason: policyReason,
-        };
-
-        await persistTransaction(tx);
-
-        setSimulation((prev) => ({
-          ...prev,
+      // Branch 2: Gatekeeper Paused for 1-Click Human Override
+      if (execData.decision === "REQUIRE_HUMAN") {
+        updateAgentSimulation({
+          ...INITIAL_SIMULATION,
           stage: "complete",
-          verdict: "BLOCKED",
-          riskScore: 82,
-          piiExposedPct: 0,
-          merchantStatusCode: null,
-          merchantBadge: "Blocked by Universal Mandate",
-          paypalOrderId: null,
-          gatekeeperNotes: [
-            `✗ ${policyReason}`,
-            "✓ PayPal Vault stayed locked ($0.00 moved).",
-          ],
-        }));
-        return;
-      }
-
-      // Check Over-Budget or Daily-Limit Escalation (1-Click Human Override)
-      const latestMandate = mandateRef.current;
-      const exceedsPerTx = selected.price > latestMandate.maxPerTransaction;
-      const exceedsDailyLimit =
-        latestMandate.dailySpent + selected.price > latestMandate.dailyLimit;
-
-      if (exceedsPerTx || exceedsDailyLimit) {
-        const txId = makeUniqueId("tx");
-        const limitDetail = exceedsPerTx
-          ? `$${selected.price.toFixed(2)} > $${latestMandate.maxPerTransaction.toFixed(2)} per-purchase cap`
-          : `Projected daily spend $${(
-              latestMandate.dailySpent + selected.price
-            ).toFixed(2)} > $${latestMandate.dailyLimit.toFixed(2)} daily limit`;
-
-        const tx: AuditTransaction = {
-          id: txId,
-          timestamp: new Date().toISOString(),
-          mode: "ghostpass",
+          mode,
           prompt: activePrompt,
-          requestedProductId: selected.id,
-          requestedProductName: selected.name,
-          cartItems: [
-            {
-              id: selected.id,
-              name: selected.name,
-              price: selected.price,
-              category: selected.category,
-            },
-          ],
-          totalAmount: selected.price,
           verdict: "NEEDS_APPROVAL",
-          riskScore: 28,
-          piiExposedPct: 0,
-          merchantStatusCode: 200,
-          paypalOrderId: null,
-          reason: `Paused for 1-Click Human Override (${limitDetail}).`,
-        };
-
-        await persistTransaction(tx);
-
-        setSimulation((prev) => ({
-          ...prev,
-          stage: "complete",
-          verdict: "NEEDS_APPROVAL",
-          riskScore: 28,
+          riskScore: execData.riskScore,
           piiExposedPct: 0,
           merchantStatusCode: 200,
           merchantBadge: "✓ Mandate Ready · Awaiting Human Tap",
-          proposedTotal: selected.price,
+          selectedProduct: execData.selectedProduct,
+          injectedProduct: null,
+          proposedTotal: execData.proposedCartTotal,
           paypalOrderId: null,
-          pendingOverrideTransactionId: txId,
-          gatekeeperNotes: [
-            "✓ Zero prompt-injection threats & 0% PII leaked.",
-            `⚠ ${limitDetail}.`,
-            "→ Tap Approve below to release scoped PayPal funds.",
-          ],
-        }));
+          approvalToken: execData.approvalToken ?? null,
+          shippingRelayLabel: "PayPal Vault Direct Relay (On Hold)",
+          gatekeeperNotes: execData.gatekeeperNotes,
+          agentContextPreview: execData.redactedContext,
+          pendingOverrideTransactionId: execData.auditEventId ?? null,
+        });
+        await refreshFromServerState();
         return;
       }
 
-      // Stage 3 & 4: Merchant Check + PayPal Settlement (Safe Purchase)
-      setSimulation((prev) => ({
-        ...prev,
+      // Branch 3: Submit to NovaTech Merchant Anti-Bot Firewall (/api/store/checkout)
+      const checkingSim: SimulationRunState = {
+        ...INITIAL_SIMULATION,
         stage: "merchant_checking",
-        merchantStatusCode: 200,
-        merchantBadge: "✓ Verified PayPal Human Mandate",
-      }));
-      await sleep(400);
-      if (runIdRef.current !== currentRunId) return;
+        mode,
+        prompt: activePrompt,
+        piiExposedPct: execData.piiExposedPct,
+        selectedProduct: execData.selectedProduct,
+        injectedProduct: null,
+        proposedTotal: execData.proposedCartTotal,
+        merchantBadge:
+          mode === "standard_bot"
+            ? "NovaTech Anti-Bot Firewall Checking..."
+            : "Verifying X-PayPal-GhostPass-Signature...",
+        shippingRelayLabel:
+          mode === "standard_bot"
+            ? "Bot Typing Raw Home Address"
+            : "PayPal Vault Direct Relay",
+        gatekeeperNotes: execData.gatekeeperNotes,
+        agentContextPreview:
+          execData.exposedPiiContext ?? execData.redactedContext,
+      };
+      updateAgentSimulation(checkingSim);
 
-      setSimulation((prev) => ({
-        ...prev,
-        stage: "paypal_settling",
-      }));
-      await sleep(400);
-      if (runIdRef.current !== currentRunId) return;
+      const checkoutHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (execData.signature) {
+        checkoutHeaders["X-PayPal-GhostPass-Signature"] = execData.signature;
+      }
 
-      const orderId = buildSimOrderId();
-      const freshMandate = mandateRef.current;
-      await persistMandate({
-        ...freshMandate,
-        dailySpent: Number((freshMandate.dailySpent + selected.price).toFixed(2)),
+      const checkoutResRaw = await fetch("/api/store/checkout", {
+        method: "POST",
+        headers: checkoutHeaders,
+        body: JSON.stringify({
+          productId: execData.selectedProduct.id,
+          amount: execData.proposedCartTotal,
+          mode: execData.mode,
+          sessionId: execData.sessionId,
+          prompt: activePrompt,
+          ghostPassHeader: execData.signature,
+          agentContextPayload:
+            execData.exposedPiiContext ?? execData.redactedContext,
+        }),
       });
 
-      const tx: AuditTransaction = {
-        id: makeUniqueId("tx"),
-        timestamp: new Date().toISOString(),
-        mode: "ghostpass",
-        prompt: activePrompt,
-        requestedProductId: selected.id,
-        requestedProductName: selected.name,
-        cartItems: [
-          {
-            id: selected.id,
-            name: selected.name,
-            price: selected.price,
-            category: selected.category,
-          },
-        ],
-        totalAmount: selected.price,
-        verdict: "APPROVED",
-        riskScore: 6,
-        piiExposedPct: 0,
-        merchantStatusCode: 201,
-        paypalOrderId: orderId,
-        reason: `Approved under Mandate ($${selected.price.toFixed(
-          2
-        )} <= $${freshMandate.maxPerTransaction.toFixed(2)}). Settled with 0% PII.`,
-      };
+      if (runIdRef.current !== currentRunId) return;
 
-      await persistTransaction(tx);
+      const checkoutData = (await checkoutResRaw.json()) as CheckoutResponse;
 
-      setSimulation((prev) => ({
-        ...prev,
+      if (checkoutResRaw.status === 403 || checkoutData.httpStatus === 403) {
+        updateAgentSimulation({
+          ...checkingSim,
+          stage: "complete",
+          verdict: "403_REJECTED",
+          riskScore: 86,
+          piiExposedPct: checkoutData.piiExposedPct,
+          merchantStatusCode: 403,
+          merchantBadge: "403 Forbidden: Unverified AI Scraper Blocked",
+          paypalOrderId: null,
+          gatekeeperNotes: [
+            "✗ Personal name, email & address leaked into bot payload.",
+            `✗ ${checkoutData.message}`,
+            "✓ PayPal Vault untouched ($0.00 moved).",
+          ],
+        });
+        await refreshFromServerState();
+        return;
+      }
+
+      updateAgentSimulation({
+        ...checkingSim,
         stage: "complete",
         verdict: "APPROVED",
-        riskScore: 6,
+        riskScore: execData.riskScore,
         piiExposedPct: 0,
-        merchantStatusCode: 201,
-        merchantBadge: "✓ Verified PayPal Human Mandate",
-        proposedTotal: selected.price,
-        paypalOrderId: orderId,
+        merchantStatusCode: 200,
+        merchantBadge: "✓ Verified PayPal Human Mandate Accepted",
+        paypalOrderId: checkoutData.receiptToken ?? null,
+        verificationHash: checkoutData.verificationHash ?? null,
         gatekeeperNotes: [
-          `✓ Price $${selected.price.toFixed(2)} fits within $${freshMandate.maxPerTransaction.toFixed(
-            2
-          )} cap.`,
-          `✓ Category "${selected.category}" permitted; 0 injection threats.`,
-          "✓ Vaulted shipping address relayed directly from PayPal to Merchant.",
+          ...execData.gatekeeperNotes,
+          `✓ ${checkoutData.message}`,
+          `✓ Verification Hash: ${checkoutData.verificationHash ?? "VERIFIED"}`,
         ],
-      }));
+      });
+      await refreshFromServerState();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Pipeline error";
+      updateAgentSimulation({
+        ...INITIAL_SIMULATION,
+        stage: "complete",
+        mode,
+        prompt: activePrompt,
+        verdict: "BLOCKED",
+        riskScore: 90,
+        merchantBadge: "Execution Error",
+        gatekeeperNotes: [`✗ ${msg}`],
+      });
     } finally {
       if (runIdRef.current === currentRunId) {
         setIsRunning(false);
@@ -673,44 +446,74 @@ export default function GhostPassStorefrontPage() {
   }
 
   async function handleApproveOverride() {
-    if (!simulation.selectedProduct || isSettlingOverride) return;
+    if (
+      !simulation.selectedProduct ||
+      !simulation.approvalToken ||
+      isSettlingOverride
+    ) {
+      return;
+    }
 
     setIsSettlingOverride(true);
     try {
-      const amount = simulation.proposedTotal;
-      const orderId = buildSimOrderId();
-      const freshMandate = mandateRef.current;
-
-      await persistMandate({
-        ...freshMandate,
-        dailySpent: Number((freshMandate.dailySpent + amount).toFixed(2)),
+      const resRaw = await fetch("/api/store/checkout", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-PayPal-Human-Override": simulation.approvalToken,
+        },
+        body: JSON.stringify({
+          productId: simulation.selectedProduct.id,
+          amount: simulation.proposedTotal,
+          mode: "GHOSTPASS",
+          prompt: simulation.prompt,
+          humanOverrideToken: simulation.approvalToken,
+          auditEventId: simulation.pendingOverrideTransactionId ?? undefined,
+          agentContextPayload: simulation.agentContextPreview,
+        }),
       });
 
-      if (simulation.pendingOverrideTransactionId) {
-        await patchTransaction(simulation.pendingOverrideTransactionId, {
-          verdict: "APPROVED",
-          merchantStatusCode: 201,
-          paypalOrderId: orderId,
-          reason: `Human 1-Click Override Approved ($${amount.toFixed(
-            2
-          )}). Settled with 0% PII.`,
-        });
+      const data = (await resRaw.json()) as CheckoutResponse;
+
+      if (!resRaw.ok) {
+        const failedSim: SimulationRunState = {
+          ...simulation,
+          stage: "complete",
+          verdict: "403_REJECTED",
+          merchantStatusCode: 403,
+          merchantBadge: "Override Verification Failed",
+          gatekeeperNotes: [`✗ ${data.message}`],
+        };
+        setSimulation(failedSim);
+        if (checkoutDriver?.type === "agent") {
+          setCheckoutDriver({ type: "agent", simulation: failedSim });
+        }
+        await refreshFromServerState();
+        return;
       }
 
-      setSimulation((prev) => ({
-        ...prev,
+      const nextSim: SimulationRunState = {
+        ...simulation,
         stage: "complete",
         verdict: "APPROVED",
-        merchantStatusCode: 201,
+        riskScore: 15,
+        merchantStatusCode: 200,
         merchantBadge: "✓ Human Override + PayPal Mandate Verified",
-        paypalOrderId: orderId,
+        paypalOrderId: data.receiptToken ?? null,
+        verificationHash: data.verificationHash ?? null,
+        approvalToken: null,
         pendingOverrideTransactionId: null,
         gatekeeperNotes: [
-          "✓ 1-Click Human Override confirmed.",
-          `✓ Scoped $${amount.toFixed(2)} order settled via PayPal Vault.`,
+          "✓ 1-Click Human Override cryptographically verified.",
+          `✓ ${data.message}`,
           "✓ 0% PII exposed to the AI agent.",
         ],
-      }));
+      };
+      setSimulation(nextSim);
+      if (checkoutDriver?.type === "agent") {
+        setCheckoutDriver({ type: "agent", simulation: nextSim });
+      }
+      await refreshFromServerState();
     } finally {
       setIsSettlingOverride(false);
     }
@@ -722,27 +525,37 @@ export default function GhostPassStorefrontPage() {
     setIsSettlingOverride(true);
     try {
       if (simulation.pendingOverrideTransactionId) {
-        await patchTransaction(simulation.pendingOverrideTransactionId, {
-          verdict: "BLOCKED",
-          merchantStatusCode: 422,
-          paypalOrderId: null,
-          reason: "Rejected by Human during 1-Click Over-Budget Confirmation.",
+        await syncServerState({
+          action: "update_tx",
+          txId: simulation.pendingOverrideTransactionId,
+          patch: {
+            verdict: "BLOCKED",
+            merchantStatusCode: 422,
+            paypalOrderId: null,
+            reason: "Rejected by Human during 1-Click Over-Budget Confirmation.",
+          },
         });
       }
 
-      setSimulation((prev) => ({
-        ...prev,
+      const nextSim: SimulationRunState = {
+        ...simulation,
         stage: "complete",
         verdict: "BLOCKED",
         merchantStatusCode: null,
         merchantBadge: "Declined by Human Owner",
         paypalOrderId: null,
+        approvalToken: null,
         pendingOverrideTransactionId: null,
         gatekeeperNotes: [
           "✓ Purchase declined by human tap.",
           "✓ PayPal Vault stayed locked ($0.00 moved).",
         ],
-      }));
+      };
+      setSimulation(nextSim);
+      if (checkoutDriver?.type === "agent") {
+        setCheckoutDriver({ type: "agent", simulation: nextSim });
+      }
+      await refreshFromServerState();
     } finally {
       setIsSettlingOverride(false);
     }
@@ -755,13 +568,15 @@ export default function GhostPassStorefrontPage() {
     setMandate(freshMandate);
     mandateRef.current = freshMandate;
     setTransactions([]);
-    transactionsRef.current = [];
     setSimulation(INITIAL_SIMULATION);
-    void syncServerState({ action: "reset" });
+    setCheckoutDriver(null);
+    await syncServerState({ action: "reset" });
+    await refreshFromServerState();
   }
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#FAFAFA]">
+      {/* Browser Frame Pull-Down X-Ray TV */}
       <PullDownTV
         open={tvOpen}
         onClose={() => setTvOpen(false)}
@@ -775,21 +590,24 @@ export default function GhostPassStorefrontPage() {
         onResetDemo={handleResetDemo}
       />
 
-      <MandateHeader
-        mandate={mandate}
-        onUpdateMandate={persistMandate}
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-        aiDrawerOpen={aiDrawerOpen}
-        onToggleAiDrawer={() => setAiDrawerOpen((prev) => !prev)}
+      {/* Slim Top Browser Chrome Bar */}
+      <BrowserChromeBar
         tvOpen={tvOpen}
         onToggleTv={() => setTvOpen((prev) => !prev)}
         activeVerdict={simulation.verdict}
         isRunning={isRunning}
+      />
+
+      {/* Layer 1: Independent Merchant Storefront (NovaTech — 100% Pure E-Commerce) */}
+      <StoreNavbar
+        selectedCategory={selectedCategory}
+        onSelectCategory={setSelectedCategory}
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
         cartItems={cartItems}
         onRemoveFromCart={handleRemoveFromCart}
         onClearCart={handleClearCart}
-        onCheckoutCartWithAi={handleCheckoutCartWithAi}
+        onOpenCartCheckout={handleOpenCartCheckout}
       />
 
       <main className="flex-1">
@@ -797,26 +615,40 @@ export default function GhostPassStorefrontPage() {
           products={PRODUCT_CATALOG}
           selectedCategory={selectedCategory}
           onSelectCategory={setSelectedCategory}
+          searchQuery={searchQuery}
+          onResetFilters={() => {
+            setSelectedCategory("All");
+            setSearchQuery("");
+          }}
           onAddToCart={handleAddToCart}
-          onAiBuyProduct={handleAiBuyProduct}
-          onOpenAiShopper={() => setAiDrawerOpen(true)}
+          onBuyNow={handleHumanBuyNow}
           highlightedProductId={simulation.selectedProduct?.id ?? null}
         />
       </main>
 
-      <AIShopperDrawer
-        open={aiDrawerOpen}
-        onClose={() => setAiDrawerOpen(false)}
+      {/* NovaTech Standard Store Checkout Modal */}
+      <StoreCheckoutModal
+        driver={checkoutDriver}
+        onClose={() => setCheckoutDriver(null)}
+        onHumanPaySuccess={handleHumanPaySuccess}
+        isSettlingOverride={isSettlingOverride}
+        onApproveOverride={handleApproveOverride}
+        onRejectOverride={handleRejectOverride}
+      />
+
+      {/* Layer 2: External Browser Extension Companion (Bottom-Right) */}
+      <AgentExtensionWidget
+        mandate={mandate}
+        onUpdateMandate={persistMandate}
         mode={mode}
         onModeChange={setMode}
         prompt={prompt}
         onPromptChange={setPrompt}
         onRunPrompt={handleRunAgent}
         isRunning={isRunning}
-        mandate={mandate}
         simulation={simulation}
         onOpenTv={() => {
-          setAiDrawerOpen(false);
+          setCheckoutDriver(null);
           setTvOpen(true);
         }}
         inputRef={promptInputRef}

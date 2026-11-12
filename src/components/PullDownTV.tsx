@@ -294,7 +294,7 @@ export function PullDownTV({
                       ? "Store accepted the verified PayPal Human Mandate header and received your shipping address directly from PayPal Vault."
                       : simulation.verdict === "NEEDS_APPROVAL"
                       ? "GhostPass Mandate signature ready — paused for your 1-click budget override before store capture."
-                      : "Online stores verify X-GhostPass-Mandate instead of tripping CAPTCHAs."}
+                      : "Online stores verify X-PayPal-GhostPass instead of tripping CAPTCHAs."}
                   </p>
 
                   <div className="mt-3 space-y-2 rounded-xl border border-slate-800 bg-slate-950/90 p-3 text-xs">
@@ -302,7 +302,7 @@ export function PullDownTV({
                       <span className="text-slate-500">Mandate Header</span>
                       <span className="font-mono text-[11px] text-slate-200">
                         {isGhostPass && !isIdle
-                          ? "X-GhostPass-Mandate: Verified ✓"
+                          ? "X-PayPal-GhostPass: Verified ✓"
                           : "Missing / Unverified"}
                       </span>
                     </div>
@@ -384,13 +384,27 @@ export function PullDownTV({
                     ))}
                   </ul>
 
-                  {/* Live PayPal Order ID Badge */}
+                  {/* Live PayPal Order ID / Receipt Badge */}
                   {simulation.paypalOrderId && (
-                    <div className="mt-3 flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs">
-                      <span className="text-emerald-200">PayPal Order ID</span>
-                      <span className="font-mono font-semibold text-emerald-300">
-                        {simulation.paypalOrderId}
-                      </span>
+                    <div className="mt-3 space-y-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-emerald-200">
+                          Merchant Receipt / Order ID
+                        </span>
+                        <span className="font-mono font-semibold text-emerald-300">
+                          {simulation.paypalOrderId}
+                        </span>
+                      </div>
+                      {simulation.verificationHash && (
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-emerald-200/80">
+                            HMAC Verification Hash
+                          </span>
+                          <span className="font-mono text-emerald-300">
+                            {simulation.verificationHash}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS mandates (
   daily_spent NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
   block_gift_cards BOOLEAN NOT NULL DEFAULT TRUE,
   block_subscriptions BOOLEAN NOT NULL DEFAULT TRUE,
-  allowed_categories JSONB NOT NULL DEFAULT '["Dev Gear", "Books", "Audio", "Accessories"]'::jsonb,
+  allowed_categories JSONB NOT NULL DEFAULT '["Keyboards & Mice", "Audio", "Cloud & Books", "Accessories"]'::jsonb,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -35,3 +35,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_transactions_timestamp
 
 CREATE INDEX IF NOT EXISTS idx_audit_transactions_verdict
   ON audit_transactions (verdict);
+
+-- Seed default mandate row idempotently
+INSERT INTO mandates (
+  id, rule_text, max_per_transaction, daily_limit, daily_spent,
+  block_gift_cards, block_subscriptions, allowed_categories
+) VALUES (
+  'mandate-default-01',
+  'Max $60 · Hardware, audio & tech books · Block gift cards & subscriptions',
+  60.00,
+  150.00,
+  0.00,
+  TRUE,
+  TRUE,
+  '["Keyboards & Mice", "Audio", "Cloud & Books", "Accessories"]'::jsonb
+) ON CONFLICT (id) DO NOTHING;

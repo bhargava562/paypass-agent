@@ -67,7 +67,7 @@ Most agentic payment proposals either give the AI agent a virtual credit card *a
 | Dimension | Standard AI Shopping Bot | Closed Store Silo (e.g., Retailer Profile) | PayPal GhostPass (Double-Blind VIP Pass) |
 | :--- | :--- | :--- | :--- |
 | **AI Agent PII Exposure** | **100% Exposed** (Name, Email, Address, Credentials in context) | Partial / Re-entered per retailer | **0% PII** (Identity-Blind Agent) |
-| **Merchant Bot Defense** | **403 Blocked / CAPTCHA** (Looks like an unauthorized scraper) | Whitelisted only inside that 1 retailer | **Cryptographic Human Mandate** (`X-GhostPass-Mandate`) works on any open-web store |
+| **Merchant Bot Defense** | **403 Blocked / CAPTCHA** (Looks like an unauthorized scraper) | Whitelisted only inside that 1 retailer | **Cryptographic Human Mandate** (`X-PayPal-GhostPass-Signature`) works on any open-web store |
 | **Prompt Injection Defense** | None — agent follows injected cart instructions | Static dollar cap only | **Two-Brain Architecture** — independent Gatekeeper audits cart semantics against plain-English policy |
 | **Shipping Address Delivery** | Typed into forms by AI bot | Stored separately at every store | **PayPal Vault Relay** — sent directly from PayPal to Merchant upon capture |
 | **Cross-Store Portability** | Fragile form-filling | Zero portability (50 silos) | **Universal** — one PayPal rule works everywhere |

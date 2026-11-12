@@ -2,28 +2,17 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import {
-  Eye,
-  Plus,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  X,
-  Zap,
-} from "lucide-react";
-import {
-  Product,
-  ProductCategory,
-} from "@/data/catalog";
+import { ArrowRight, Eye, Plus, Star, Truck, X } from "lucide-react";
+import { Product, ProductCategory } from "@/data/catalog";
 
 interface ProductGridProps {
   products: Product[];
   selectedCategory: "All" | ProductCategory;
   onSelectCategory: (category: "All" | ProductCategory) => void;
+  searchQuery: string;
+  onResetFilters: () => void;
   onAddToCart: (product: Product) => void;
-  onAiBuyProduct: (product: Product) => void;
-  onOpenAiShopper: () => void;
+  onBuyNow: (product: Product) => void;
   highlightedProductId?: string | null;
 }
 
@@ -31,12 +20,12 @@ export function ProductGrid({
   products,
   selectedCategory,
   onSelectCategory,
+  searchQuery,
+  onResetFilters,
   onAddToCart,
-  onAiBuyProduct,
-  onOpenAiShopper,
+  onBuyNow,
   highlightedProductId,
 }: ProductGridProps) {
-  const [searchQuery, setSearchQuery] = useState("");
   const [inspectedProduct, setInspectedProduct] = useState<Product | null>(
     null
   );
@@ -68,52 +57,43 @@ export function ProductGrid({
     });
   }, [products, selectedCategory, searchQuery]);
 
+  function handleShopNewArrivals() {
+    onSelectCategory("All");
+    const grid = document.getElementById("novatech-catalog-grid");
+    grid?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 pb-16 pt-6 sm:px-6">
-      {/* Compact Editorial Seasonal Storefront Banner */}
+    <section className="mx-auto w-full max-w-7xl px-4 pb-28 pt-6 sm:px-6">
+      {/* Pure Retail Seasonal Banner */}
       <div className="mb-8 flex flex-col justify-between gap-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:p-8">
         <div className="max-w-2xl">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#0070E0]/20 bg-[#0070E0]/5 px-3 py-1 text-xs font-medium text-[#003087]">
-            <ShieldCheck className="h-3.5 w-3.5 text-[#0070E0]" />
-            <span>Instant PayPal GhostPass Checkout</span>
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700">
+            <Truck className="h-3.5 w-3.5 text-zinc-900" />
+            <span>Free 2-Day Express Shipping on Orders Over $35</span>
           </div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-[#09090B] sm:text-3xl">
-            Precision Hardware &amp; Cloud Credits
+            Precision Workspace &amp; Studio Hardware
           </h1>
           <p className="mt-2 text-sm leading-relaxed text-zinc-600">
-            Curated mechanical keyboards, studio audio, Thunderbolt docks, and
-            GPU compute packs. Shop manually or delegate checkout to your{" "}
-            <button
-              type="button"
-              onClick={onOpenAiShopper}
-              className="cursor-pointer font-semibold text-[#0070E0] underline-offset-4 hover:underline"
-            >
-              AI Shopper
-            </button>{" "}
-            with zero personal data exposed.
+            Shop flagship mechanical keyboards, Thunderbolt 4 docks, studio
+            noise-canceling headphones, and cloud compute packs with verified
+            manufacturer warranties.
           </p>
         </div>
 
-        <div className="flex flex-col gap-3 sm:items-end">
-          <div className="relative w-full sm:w-64">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <input
-              type="text"
-              aria-label="Search store catalog"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search hardware, books..."
-              className="w-full rounded-full border border-zinc-200 bg-[#FAFAFA] py-2 pl-9 pr-4 text-xs text-[#09090B] outline-none transition placeholder:text-zinc-400 focus:border-[#0070E0] focus:bg-white"
-            />
-          </div>
-          <div className="flex items-center gap-3 text-[11px] text-zinc-500">
-            <span>{filteredProducts.length} items shown</span>
-            <span className="h-1 w-1 rounded-full bg-zinc-300" />
-            <span className="inline-flex items-center gap-1 font-medium text-[#003087]">
-              <Sparkles className="h-3 w-3 text-[#0070E0]" />
-              0% PII Agent Protocol
-            </span>
-          </div>
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+          <button
+            type="button"
+            onClick={handleShopNewArrivals}
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#09090B] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
+          >
+            <span>Shop New Arrivals</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-[11px] text-zinc-500">
+            {filteredProducts.length} items in {selectedCategory}
+          </span>
         </div>
       </div>
 
@@ -124,21 +104,21 @@ export function ProductGrid({
             No products matched &ldquo;{searchQuery}&rdquo;
           </p>
           <p className="mt-1 text-xs text-zinc-500">
-            Clear your search or switch back to All categories.
+            Clear your search or return to All departments.
           </p>
           <button
             type="button"
-            onClick={() => {
-              onSelectCategory("All");
-              setSearchQuery("");
-            }}
+            onClick={onResetFilters}
             className="mt-4 cursor-pointer rounded-full bg-[#09090B] px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
           >
             Reset Store Filters
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div
+          id="novatech-catalog-grid"
+          className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+        >
           {filteredProducts.map((product, index) => {
             const isHighlighted = highlightedProductId === product.id;
 
@@ -147,7 +127,7 @@ export function ProductGrid({
                 key={product.id}
                 className={`group flex flex-col justify-between overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
                   isHighlighted
-                    ? "border-[#0070E0] ring-2 ring-[#0070E0]/20 shadow-md"
+                    ? "border-[#0070E0] ring-2 ring-[#0070E0]/25 shadow-md"
                     : "border-[#E4E4E7]"
                 }`}
               >
@@ -177,16 +157,16 @@ export function ProductGrid({
 
                     <button
                       type="button"
-                      aria-label={`Inspect ${product.name}`}
+                      aria-label={`Quick view ${product.name}`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setInspectedProduct(product);
                         setShowRawDom(false);
                       }}
-                      className="absolute right-3 top-3 inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/50 bg-zinc-950/75 px-2.5 py-1 text-[10px] font-medium text-white opacity-90 backdrop-blur-xs transition hover:bg-zinc-950 group-hover:opacity-100"
+                      className="absolute right-3 top-3 inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/40 bg-zinc-950/75 px-2.5 py-1 text-[10px] font-medium text-white opacity-90 backdrop-blur-xs transition hover:bg-zinc-950 group-hover:opacity-100"
                     >
                       <Eye className="h-3 w-3" />
-                      Inspect
+                      Details
                     </button>
                   </div>
 
@@ -210,7 +190,7 @@ export function ProductGrid({
                         setInspectedProduct(product);
                         setShowRawDom(false);
                       }}
-                      className="line-clamp-2 cursor-pointer font-display text-sm font-semibold leading-snug text-[#09090B] transition-colors group-hover:text-[#0070E0]"
+                      className="line-clamp-2 cursor-pointer font-display text-sm font-semibold leading-snug text-[#09090B] transition-colors group-hover:text-zinc-700"
                     >
                       {product.name}
                     </h2>
@@ -221,7 +201,7 @@ export function ProductGrid({
                   </div>
                 </div>
 
-                {/* Price + Retail Actions */}
+                {/* Price + Standard Retail Actions */}
                 <div className="border-t border-zinc-100 px-4 pb-4 pt-3">
                   <div className="mb-3 flex items-baseline justify-between">
                     <span className="font-mono text-lg font-bold tracking-tight text-[#09090B]">
@@ -243,11 +223,10 @@ export function ProductGrid({
                     </button>
                     <button
                       type="button"
-                      onClick={() => onAiBuyProduct(product)}
-                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-xl bg-[#0070E0] px-3 py-2 text-xs font-semibold text-white transition hover:bg-[#003087]"
+                      onClick={() => onBuyNow(product)}
+                      className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-[#09090B] px-3 py-2 text-xs font-semibold text-white transition hover:bg-zinc-800"
                     >
-                      <Zap className="h-3.5 w-3.5" />
-                      AI Buy
+                      Buy Now
                     </button>
                   </div>
                 </div>
@@ -257,7 +236,7 @@ export function ProductGrid({
         </div>
       )}
 
-      {/* Product Inspect & Merchant DOM Metadata Modal */}
+      {/* Standard Retail Product Quick-View Modal */}
       {inspectedProduct && (
         <div
           role="dialog"
@@ -280,7 +259,7 @@ export function ProductGrid({
               />
               <button
                 type="button"
-                aria-label="Close product inspector"
+                aria-label="Close product details"
                 onClick={() => setInspectedProduct(null)}
                 className="absolute right-3 top-3 cursor-pointer rounded-full bg-zinc-950/75 p-2 text-white backdrop-blur-xs hover:bg-zinc-950"
               >
@@ -293,7 +272,7 @@ export function ProductGrid({
                 <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 font-medium text-zinc-700">
                   {inspectedProduct.category} · {inspectedProduct.sku}
                 </span>
-                <span className="font-mono font-bold text-lg text-[#09090B]">
+                <span className="font-mono text-lg font-bold text-[#09090B]">
                   ${inspectedProduct.price.toFixed(2)}
                 </span>
               </div>
@@ -323,14 +302,14 @@ export function ProductGrid({
               <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-3.5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-zinc-800">
-                    Merchant Page Source Inspector
+                    Page HTML Source
                   </span>
                   <button
                     type="button"
                     onClick={() => setShowRawDom((prev) => !prev)}
-                    className="cursor-pointer text-xs font-semibold text-[#0070E0] hover:underline"
+                    className="cursor-pointer text-xs font-semibold text-zinc-700 underline-offset-2 hover:underline"
                   >
-                    {showRawDom ? "Hide Raw Metadata" : "Inspect Raw Metadata"}
+                    {showRawDom ? "Hide Source" : "View Page Source"}
                   </button>
                 </div>
                 {showRawDom && (
@@ -340,9 +319,9 @@ export function ProductGrid({
                         id: inspectedProduct.id,
                         price: inspectedProduct.price,
                         category: inspectedProduct.category,
-                        rawHtmlComment:
-                          inspectedProduct.hiddenPromptInjection ??
-                          "<!-- Clean merchant metadata. No hidden directives. -->",
+                        htmlMetadata:
+                          inspectedProduct.hiddenHtmlMetadata ??
+                          "<!-- Standard NovaTech product listing markup -->",
                       },
                       null,
                       2
@@ -367,12 +346,11 @@ export function ProductGrid({
                   onClick={() => {
                     const target = inspectedProduct;
                     setInspectedProduct(null);
-                    onAiBuyProduct(target);
+                    onBuyNow(target);
                   }}
-                  className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#0070E0] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#003087]"
+                  className="cursor-pointer rounded-xl bg-[#09090B] px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800"
                 >
-                  <Zap className="h-3.5 w-3.5" />
-                  Buy via AI Shopper
+                  Buy Now
                 </button>
               </div>
             </div>

@@ -10,64 +10,49 @@ To guarantee zero broken builds and keep every milestone independently testable,
 
 ```mermaid
 flowchart LR
-    S1["Split 1: Foundation, Catalog, Storage Adapter, Storefront UI & Pull-Down TV"] --> S2["Split 2: Two-Brain Gemini Pipeline & Merchant Bot-Defense APIs"]
-    S2 --> S3["Split 3: Live PayPal Sandbox Orders v2, AG Grid Binding & Final Docs"]
+    S1["Split 1: Storefront, External Extension, Browser X-Ray TV & Storage"] --> S2["Split 2: Two-Brain Gemini Pipeline, HMAC Mandate Signer & 403 Firewall"]
+    S2 --> S3["Split 3: Live PayPal Sandbox Orders v2 Capture & Release Hygiene"]
 ```
 
 ---
 
-## Split 1: Foundation, Storefront UI & Pull-Down TV Overlay
+## Split 1: Foundation, Storefront UI, External Extension & Pull-Down TV Overlay (Completed)
 
 ### Scope & Deliverables
-1. **Project Structure Alignment (`src/`):**
-   - Align Next.js 16 App Router under `src/app/` (migrating starter `app/` cleanly into `src/app/` and updating `tsconfig.json` `@/*` alias to `./src/*` so Next.js resolves `src/app/page.tsx` without conflict).
-2. **Product Catalog & Prompt-Injection Dataset (`src/data/catalog.ts`):**
-   - 10 realistic e-commerce products across `Dev Gear`, `Books`, `Audio`, `Accessories`, and `Digital Cards`.
-   - Includes the `$48.00` wireless mechanical keyboard (safe target), the `$115.00` studio wireless headphones (over-budget escalation target), a `$75.00` Steam Gift Card (explicitly restricted category), and the `$19.00` USB-C braided cable carrying a hidden prompt-injection payload attempting to sneak the `$75.00` Steam Gift Card into the cart.
-   - Exports shared TypeScript domain types (`Product`, `SpendingMandate`, `AgentRunMode`, `SecurityVerdict`, `AuditTransaction`, `SimulationStepState`).
-3. **Hybrid Persistence Adapter (`src/lib/db.ts` + `migrations/001_init.sql`):**
-   - PostgreSQL DDL schema in `migrations/001_init.sql` (`mandates` and `audit_transactions` tables).
-   - `src/lib/db.ts` exposing a unified async persistence layer:
-     - **Default (Zero-Config):** In-Memory store + browser `localStorage` synchronization so demos persist across reloads with zero environment setup.
-     - **Neon Postgres Mode:** Automatically activates when `process.env.DATABASE_URL` is configured (with safe dynamic handling so build never fails if `DATABASE_URL` is unset).
-4. **High-Craft Storefront, Mandate Pill, Floating AI Bar & Pull-Down TV Overlay (`src/app/page.tsx` + `src/components/`):**
-   - `src/components/MandateHeader.tsx`: Storefront navbar, Universal Spending Mandate Pill with inline editor + daily budget progress bar, and `📺 Behind the Scenes` trigger button.
-   - `src/components/ProductGrid.tsx`: Clean Apple/Stripe-style product catalog with category filter tabs, product cards, and quick-inspect modal/details.
-   - `src/components/FloatingAgentBar.tsx`: Docked bottom floating bar with `Standard AI Bot` vs. `PayPal GhostPass` toggle, natural-language input, and 3 quick-demo scenario buttons.
-   - `src/components/PullDownTV.tsx`: Smooth top-down dark-glass TV projection shade containing the **3 Layman Security Cameras** (`Privacy X-Ray`, `Store Security Guard`, `PayPal Money Vault` with 1-click Human Approve/Reject controls) and the **AG Grid Audit Ledger** tab (`ag-grid-react` v36 with `AllCommunityModule` registered).
-   - Interactive Split 1 preview engine so every state transition (Standard Bot 403 block, GhostPass safe approval, Prompt-Injection block, Over-Budget 1-click override) can be interactively exercised in the browser immediately while Split 2 & 3 plug in live backend routes.
-5. **Verification Gate:**
-   - `npm run build` and `npm run lint` pass with zero TypeScript or ESLint errors.
+1. **Project Structure Alignment (`src/`):** Next.js 16 App Router under `src/app/` with `@/*` mapped to `./src/*` in `tsconfig.json`.
+2. **Product Catalog & Prompt-Injection Dataset (`src/data/catalog.ts`):** Flagship NovaTech catalog with verified Unsplash `4:3` photography and `hiddenHtmlMetadata` prompt-injection trap on `Anker 240W Braided USB-C Cable` (`$19.00` attempting to inject `$75.00` Steam Digital Gift Card).
+3. **Hybrid Persistence Adapter (`src/lib/db.ts`, `src/lib/clientStorage.ts`, `src/app/api/state/route.ts`, `migrations/001_init.sql`):** Server In-Memory + validated `localStorage` default with automatic Neon PostgreSQL HTTP SQL support when `DATABASE_URL` is configured.
+4. **Clean Boundary UI:**
+   - Top browser frame (`BrowserChromeBar.tsx`) + dark-glass Pull-Down X-Ray TV (`PullDownTV.tsx` + `AuditLedgerGrid.tsx`).
+   - Pure NovaTech e-commerce storefront (`StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`) with zero AI/GhostPass leaks.
+   - Floating bottom-right External Browser Extension (`AgentExtensionWidget.tsx`).
 
 ---
 
-## Split 2: Two-Brain Gemini Pipeline & Merchant Bot-Blocker
+## Split 2: Two-Brain Gemini Pipeline, HMAC Mandate Signing & Merchant Anti-Bot Firewall (Completed)
 
 ### Scope & Deliverables
-1. **`POST /api/agent/execute` (`src/app/api/agent/execute/route.ts`):**
-   - Uses `@google/genai` (`gemini-2.5-flash`) with strict JSON schema responses.
-   - **Brain 1 (Blind Shopper):** Receives sanitized catalog items (no PII) + user prompt. Outputs selected item ID(s) and reasoning. Simulates indirect prompt injection vulnerability when inspecting the `$19.00` USB-C cable's hidden metadata so the defense is genuinely tested end-to-end.
-   - **Brain 2 (GhostPass Gatekeeper):** Independently evaluates the proposed cart against the active `SpendingMandate`. Detects forbidden categories (`Gift Cards`), hidden prompt-injection instructions, and budget overruns (`APPROVED`, `BLOCKED`, or `NEEDS_APPROVAL`).
-   - Falls back deterministically if `GEMINI_API_KEY` is missing in local dev while clearly marking live Gemini inference when present.
-2. **`POST /api/store/checkout` (`src/app/api/store/checkout/route.ts`):**
-   - Enforces Merchant Bot-Defense:
-     - Standard AI Bot requests without a valid `X-GhostPass-Mandate` signature receive `403 Forbidden` (`BOT_DETECTED_NO_HUMAN_MANDATE`, `captchaRequired: true`).
-     - Verified GhostPass requests validate the mandate signature and proceed to PayPal settlement.
-3. **Frontend Wiring:**
-   - Connect `FloatingAgentBar` and `PullDownTV` Camera 1/2/3 to call `/api/agent/execute` and `/api/store/checkout` in real time.
+1. **Shared Contracts & HMAC-SHA256 Signer (`src/types/ghostpass.ts`, `src/lib/crypto/mandateSigner.ts`):**
+   - Strict TypeScript contracts (`MandateConfig`, `AgentExecuteRequest`, `AgentExecuteResponse`, `CheckoutRequest`, `CheckoutResponse`).
+   - `signGhostPassMandate`, `signHumanOverrideToken`, `verifyGhostPassMandate`, and `verifyHumanOverrideToken` using Node's `crypto.createHmac('sha256', ...)` + `timingSafeEqual` enforcing expiry and exact `{ productId, maxAmount }`.
+2. **Two-Brain Gemini 2.5 Flash Engine (`src/lib/agents/shoppingAgent.ts`, `src/lib/agents/gatekeeperAgent.ts`):**
+   - `runBlindShoppingAgent`: `gemini-2.5-flash` structured JSON product selection (`0% PII`), optional Channel3 enrichment, `hiddenHtmlMetadata` extraction, and deterministic fallback.
+   - `runGatekeeperAudit`: Hard deterministic math/regex security guard + `gemini-2.5-flash` semantic audit producing `AUTO_APPROVE`, `REQUIRE_HUMAN`, or `BLOCK`.
+3. **Next.js API Routes (`src/app/api/agent/execute/route.ts`, `src/app/api/store/checkout/route.ts`):**
+   - `/api/agent/execute` orchestrating Stage 1 + Stage 2 (or unverified PII-leaking `STANDARD_BOT`).
+   - `/api/store/checkout` enforcing `HTTP 403 BOT_SCRAPER_BLOCKED` vs. `HTTP 200 APPROVED_BY_MERCHANT` cryptographic verification.
+4. **Zero-Quota Vitest Unit & Integration Suites (`tests/unit/*.test.ts`, `tests/integration/pipeline.test.ts`):**
+   - Mocked `@google/genai` + deterministic fallbacks consuming zero Gemini API quota across 18 assertions.
 
 ---
 
-## Split 3: Live PayPal Sandbox Orders v2, AG Grid Sync & Final Polish
+## Split 3: Live PayPal Sandbox Orders v2 & Final Release Hygiene (Next)
 
 ### Scope & Deliverables
 1. **`POST /api/paypal/settle` (`src/app/api/paypal/settle/route.ts`):**
    - Authenticates against `https://api-m.sandbox.paypal.com/v1/oauth2/token` using `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET`.
-   - Creates and captures a PayPal Sandbox order via `POST /v2/checkout/orders` for the approved cart amount.
-   - Relays vaulted buyer shipping details (`PAYPAL_SANDBOX_BUYER_EMAIL` / vaulted address) directly to the merchant order record without exposing them to the AI agent.
-2. **Persistence & AG Grid Ledger Sync:**
-   - Wire `src/app/api/ledger/route.ts` (or `src/lib/db.ts` actions) so every transaction—including live PayPal Sandbox Order IDs, risk scores, and `0%` PII telemetry—persists and renders live inside the `ag-grid-react` Audit Drawer.
-3. **Documentation & Release Hygiene:**
-   - Finalize `README.md` with setup instructions, architecture overview, and demo script.
-   - Add `MIT` `LICENSE` file.
-   - Run full end-to-end verification (`npm run build`, `npm run lint`, and live API/UI verification).
+   - Creates and captures a live PayPal Sandbox order via `POST /v2/checkout/orders` for the merchant-verified amount (`APPROVED_BY_MERCHANT`).
+   - Relays vaulted buyer shipping details directly to the merchant order record without exposing them to the AI agent.
+2. **Live Order Binding & Docs:**
+   - Bind real PayPal Sandbox Order IDs into `StoreCheckoutModal`, `PullDownTV` Camera 3, and `AuditLedgerGrid`.
+   - Finalize `README.md` and `MIT` `LICENSE`.
