@@ -362,7 +362,7 @@ export function StoreNavbar({
                           <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
                           {order.id.startsWith("tx-human-")
                             ? "Direct Customer Checkout"
-                            : "Shipping Relayed by PayPal"}
+                            : "Buyer PII Shared: None — Fulfilled via PayPal Vault Relay"}
                         </span>
                         {order.paypalOrderId &&
                           (isRealPayPalOrderId(order.paypalOrderId) ? (

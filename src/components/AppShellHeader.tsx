@@ -41,6 +41,9 @@ export function AppShellHeader({
           <span className="font-display text-sm font-bold tracking-tight text-[#09090B] sm:text-base">
             PayPal GhostPass
           </span>
+          <span className="hidden rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-600 lg:inline-block">
+            MCP Broker
+          </span>
           <span
             className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
               paypalConfigured
