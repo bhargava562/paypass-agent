@@ -1,91 +1,97 @@
 # PayPal GhostPass — Product Vision & Novelty
 
-> **Agentic Commerce Authorization & Settlement Infrastructure (PaaS / MCP Payment Gateway)**
-> Built for the PayPal AI Hackathon · Project Workspace: `paypass-agent`
+> **Agentic Commerce Authorization & Settlement Infrastructure (PaaS / MCP Payment Gateway)**  
+> Built for Next.js 16 + Google Gemini 2.5 Flash (`@google/genai`) + PayPal Sandbox Orders v2 + HMAC-SHA256 + AG Grid (`ag-grid-react`) + Hybrid Neon/Memory Storage
 
 ---
 
 ## 1. Executive Summary
 
-People want AI agents to handle the tedious parts of e-commerce—searching catalogs, comparing specs and prices, and completing purchases in seconds. Yet the moment an AI agent reaches the **"Checkout / Pay Now"** button, the entire experience collapses under a two-sided trust failure: consumers refuse to hand raw wallets and private identities to fallible bots, and online merchants actively block automated agents as fraud.
+Consumers want AI assistants to automate end-to-end e-commerce—searching catalogs, comparing specs, and completing purchases in seconds. Yet the moment an autonomous agent reaches **"Checkout / Pay Now"**, agentic commerce collapses under a **two-sided trust deadlock**:
 
-**PayPal GhostPass** is **Agentic Commerce Authorization & Settlement Infrastructure**—a developer & consumer Control Plane plus REST/MCP gateway that *any* AI agent (Claude, Gemini, OpenAI Operator, or a custom CLI agent) calls to buy from *any* merchant without exposing user PII or triggering merchant bot-blocks.
+1. **Consumers and banks refuse to hand raw wallets, PII, and credentials to fallible bots** vulnerable to hallucinations and hidden webpage prompt injections.
+2. **Merchants actively block automated agents** with `403 Forbidden` responses and CAPTCHAs because unverified bots carry zero cryptographic proof of human authorization.
+
+**PayPal GhostPass** resolves this deadlock by positioning **PayPal as the universal cross-merchant trust, authorization, and settlement layer**. Any external AI agent (via Model Context Protocol / MCP or REST) executes a **Triple-Blind Agentic Handshake**—keeping 0% PII in the agent's context window, verifying every cart against a user-defined spending mandate via a Two-Brain **Gemini 2.5 Flash + deterministic** guardrail, minting a single-use **HMAC-SHA256** capability token for the merchant's anti-bot firewall, and settling directly via **PayPal Sandbox Orders v2** (`POST /v2/checkout/orders`, `intent: "CAPTURE"`).
 
 ---
 
-## 2. Detailed Problem Statement (In Simple Everyday Words)
+## 2. Real-World Problem Statement (Grounded in 2026 Industry News)
 
-### 2.1 Why AI Shopping Agents Fail Today
-Imagine asking an AI assistant to buy a \$48 wireless keyboard. Today's AI shopping agents force you into an impossible choice:
+Between September and November 2026, three watershed industry events exposed why current agentic shopping architectures fail in production:
+
+### 2.1 Amazon Blocks Meta’s Muse AI Shopping Agent (September 2026)
+Shortly after Meta launched **Muse**, a personal AI assistant capable of browsing retail sites, filling forms, and checking out on a user's behalf, **Amazon blocked Muse on Amazon.com**. Amazon cited Conditions of Use violations, noting that the agent did not transparently self-identify, scraped product pages without prior authorization, and handled customer account credentials and session state outside Amazon's trust boundary.
+- **Architectural Lesson:** Unauthenticated browser-driving bots look indistinguishable from hostile scrapers and credential-stuffing tools. Merchants will return `403 Forbidden` whenever an agent arrives without verifiable attestation.
+
+### 2.2 Walmart’s Closed Retailer-Only Agent Gateway & Checkout CAPTCHAs (October 2026)
+In October 2026, **Walmart** announced its **Agent Gateway** (an MCP-backed server) and **Agent Profiles** to allow vetted agents to browse and buy under user-configured limits—yet automated sessions still encountered friction from standard anti-bot CAPTCHA defenses when traffic appeared anomalous. Even more fundamentally, a retailer-specific gateway creates a **closed walled garden**: consumers must configure separate profiles, rules, and credentials across every individual store on the internet.
+- **Architectural Lesson:** Per-merchant silos do not scale across the open web. Consumers need **one universal wallet-level mandate** that works across any independent storefront.
+
+### 2.3 UK & Global Banks Block AI Bots from Customer Accounts (November 2026)
+In November 2026, major UK banks—including **HSBC, Barclays, Lloyds, NatWest, and Nationwide**—alongside North American institutions such as **JPMorgan Chase, Citigroup, and Charles Schwab** moved to block autonomous AI agents from logging into customer accounts. Banks cited three structural blockers:
+1. **Liability & Rogue Spend Risk:** No clear liability boundary if an agent is tricked by prompt injection or exceeds user intent.
+2. **Strong Customer Authentication (SCA) Conflicts:** Third-party bots impersonating users bypass step-up biometric/human-in-the-loop (HITL) checks.
+3. **Unbounded Credential Exposure:** Handing raw account logins or unscoped payment tokens to an LLM exposes 100% of a customer's financial identity.
+
+### 2.4 The Two-Sided Trust Deadlock
 
 ```mermaid
 flowchart TD
-    User["Human Shopper"] --> Choice{"Give AI Raw Credentials?"}
-    Choice -->|"Yes: Full Wallet + Passwords"| Risk["Privacy Leak + Prompt Injection Risk"]
-    Choice -->|"No: Ask Password Every Click"| Slow["Manual Checkout Friction"]
-    Risk --> Store["Online Store Sees Scraper Bot"]
-    Store -->|"No Proof of Human Intent"| Block["403 Forbidden / CAPTCHA Wall"]
-```
-
-#### A. The User's Problem: Lose Privacy & Control, or Lose Speed
-1. **Terrifying Blast Radius:** To check out on your behalf today, an AI agent needs your email, home shipping address, store login passwords, and raw PayPal/card details. If the AI hallucinates or falls victim to a hidden **prompt injection** on a shady webpage, it could buy a \$75 gift card instead of a \$19 cable.
-2. **Checkout Fatigue:** If you instead force the AI to stop at every checkout screen and wait for you to type your password and click "Pay", you lose the speed and autonomy of an AI agent.
-
-#### B. The Merchant's Problem: Online Stores Slam the Door Shut
-1. **Bot-Defense Blocks (403 & CAPTCHAs):** Major retailers actively block autonomous agents at checkout—for example, Amazon blocking automated scrapers with `403 Forbidden` responses and Walmart challenging suspicious bot sessions with CAPTCHAs.
-2. **Zero Proof of Human Authorization:** From the merchant's fraud engine perspective, a browser-scraping AI agent looks indistinguishable from a carding bot. The store has zero cryptographic proof that a real human actually approved the purchase.
-
-#### C. Why Closed Store Silos Don't Scale
-Some large retailers (like Walmart) have explored closed, merchant-specific "Agent Profiles." That forces consumers to create and maintain separate logins and spending rules across 50+ individual stores—which fails for the open internet.
-
----
-
-## 3. Our Solution: PayPal GhostPass (Control Plane + Gateway)
-
-**PayPal GhostPass** works like Stripe or Plaid for agentic payments:
-1. **You Set One Universal Rule in Your GhostPass Vault:** *"Max \$60 · Hardware & books only · Block gift cards"*, and mint a **Zero-PII Agent Session Key** (`gp_live_...`). Your name, email, and home address stay locked inside PayPal.
-2. **The AI Agent Shops "Blindfolded" (0% PII):** Using only the public product catalog and the Zero-PII session key, the AI selects the right \$48 Keychron Q1 Pro keyboard without ever seeing who you are or where you live.
-3. **Two-Way Trust at Checkout (No Store Blocks, No Scams):**
-   - **Protects You from Traps:** Before touching a dollar, the **GhostPass Gatekeeper** inspects the cart and raw merchant HTML metadata. If a shady webpage tries to sneak a \$75 Steam Digital Gift Card into a \$19 cable purchase, GhostPass blocks it (`\$0.00` moved). If a safe item exceeds your \$60 cap (e.g., \$115 Sony WH-1000XM5 headphones), it pauses for a single **1-Click Human Approve / Reject** decision.
-   - **Settles via PayPal Sandbox Orders v2:** Once authorized, GhostPass attaches an HMAC-SHA256 `X-PayPal-GhostPass-Signature` that clears the merchant's anti-bot firewall (`200 OK`) and executes **PayPal Sandbox Orders v2** settlement (`/v2/checkout/orders`), relaying your vaulted shipping address directly from PayPal to the merchant.
-
----
-
-## 4. True Innovation & Novelty: The Double-Blind Agentic Handshake
-
-| Dimension | Standard AI Shopping Bot | Closed Store Silo (e.g., Retailer Profile) | PayPal GhostPass (Agentic Payment Infrastructure) |
-| :--- | :--- | :--- | :--- |
-| **AI Agent PII Exposure** | **100% Exposed** (Name, Email, Address, Credentials in context) | Partial / Re-entered per retailer | **0% PII** (Identity-Blind Agent) |
-| **Merchant Bot Defense** | **403 Blocked / CAPTCHA** (Looks like an unauthorized scraper) | Whitelisted only inside that 1 retailer | **Cryptographic Human Mandate** (`X-PayPal-GhostPass-Signature`) works on any open-web store |
-| **Prompt Injection Defense** | None — agent follows injected cart instructions | Static dollar cap only | **Two-Brain Architecture** — deterministic guard + Gemini 2.5 Flash semantic auditor |
-| **Shipping Address Delivery** | Typed into forms by AI bot | Stored separately at every store | **PayPal Vault Relay** — sent directly from PayPal to Merchant |
-| **Integration Model** | Brittle browser scraping | 50 proprietary store logins | **Universal Control Plane + REST/MCP Gateway** |
-
-```mermaid
-flowchart LR
-    subgraph Blind1["1. Identity-Blind Agent"]
-        Agent["External AI Agent (0% PII Key)"] -->|"Public Catalog Only"| Cart["Proposed Cart"]
-    end
-
-    subgraph Blind2["2. GhostPass Gatekeeper Airlock"]
-        Cart --> Gate["Deterministic Guard + Gemini 2.5 Flash"]
-        Mandate["PayPal Vault Mandate"] --> Gate
-        Gate -->|"Injection / Cap Breach"| Block["Blocked ($0 Moved)"]
-        Gate -->|"Over Auto-Approve Cap"| Escalate["1-Click Human Override"]
-        Gate -->|"Safe & Verified"| Sign["HMAC-SHA256 Mandate Signature"]
-    end
-
-    subgraph Blind3["3. Merchant Firewall + PayPal Orders v2"]
-        Sign -->|"X-PayPal-GhostPass-Signature"| Merchant["NovaTech Store API (200 OK)"]
-        Merchant -->|"OAuth2 + Orders v2"| PayPal["PayPal Sandbox"]
-        Vault["PayPal Vaulted Shipping"] -->|"Direct Relay"| Merchant
-    end
+    User["Human Shopper / Bank"] -->|"Option A: Give AI Raw Credentials"| Risk["100% PII Exposure + Prompt Injection Blast Radius"]
+    User -->|"Option B: Manual Checkout Every Click"| Slow["Zero Autonomy + Checkout Fatigue"]
+    Risk --> Store["Merchant Anti-Bot Firewall"]
+    Store -->|"No Proof of Human Mandate"| Block["403 Forbidden / CAPTCHA Wall"]
+    Silo["Closed Retailer Silo (Single-Store Gateway)"] -->|"50+ Separate Profiles"| Frag["Fails on Open-Web Merchants"]
 ```
 
 ---
 
-## 5. Technical Feasibility Today
+## 3. Solution & True Novelty: The Triple-Blind Agentic Handshake
 
-1. **PayPal Developer Sandbox REST APIs (`api-m.sandbox.paypal.com`):** OAuth 2.0 Client Credentials (`/v1/oauth2/token`) + Orders v2 (`/v2/checkout/orders`) generate live, verifiable Sandbox Order IDs (`https://www.sandbox.paypal.com/activity/payment/<orderId>`).
-2. **Gemini 2.5 Flash Structured Reasoning (`@google/genai`):** Powers the blind product selector (`shoppingAgent.ts`) and semantic policy auditor (`gatekeeperAgent.ts`), paired with deterministic regex/math guards.
-3. **Zero-Config Hybrid Persistence (`src/lib/db.ts`):** Runs immediately with Server In-Memory + `localStorage` and scales cleanly to **Neon PostgreSQL** (`migrations/001_init.sql`) when `DATABASE_URL` is configured.
+**PayPal GhostPass** turns PayPal from a passive checkout button into the **universal agentic payment broker** using a **Triple-Blind Agentic Handshake**:
+
+1. **Blind 1 — AI Agent is Identity-Blind (0% PII):**
+   - The shopping agent (`src/lib/agents/shoppingAgent.ts`) receives **zero** user PII—no real name, no email, no home shipping address, and no PayPal password.
+   - Its context window contains only redacted vault sentinels (`[VAULTED_IN_PAYPAL]`, `[VAULTED_EMAIL]`, `[PAYPAL_DIRECT_RELAY]`) and a scoped session token (`gp_live_...`).
+2. **Blind 2 — Merchant Receives HMAC-SHA256 Verified Human Mandate + Vaulted PayPal Shipping Relay:**
+   - The merchant's anti-bot firewall (`POST /api/store/checkout`) does **not** trust the AI agent's claims or accept raw PII from an automated bot.
+   - Instead, it validates a single-use **HMAC-SHA256** signature (`X-PayPal-GhostPass-Signature` or `humanOverrideToken`) minted by `src/lib/crypto/mandateSigner.ts`, cryptographically scoped to `{ productId, maxAmount, sessionId, expiresAt, kind }` and verified via `crypto.timingSafeEqual` + single-use `consumeMandateToken` replay protection.
+   - Customer shipping details are relayed directly from the PayPal Vault (`[PAYPAL_DIRECT_RELAY]`), never touching the AI agent's context.
+3. **Blind 3 — PayPal Executes Scoped Orders v2 Settlement After Local Gemini 2.5 Flash Guardrail Verification:**
+   - Before any signature is issued, `src/lib/agents/gatekeeperAgent.ts` executes a **Two-Brain Audit**:
+     - **Layer 1 (Deterministic Security & Budget Guard):** Zero-latency regex and arithmetic checks catch prompt injections (`IMPORTANT_AGENT_DIRECTIVE`, `STEAM DIGITAL GIFT CARD`, `SYSTEM OVERRIDE`, etc.), restricted items (`isGiftCard`, `isSubscription`, disallowed categories), daily cap breaches, and per-transaction auto-approve limit overages (`> maxPerTransaction`).
+     - **Layer 2 (Semantic Policy Audit via `@google/genai` `gemini-2.5-flash`):** Evaluates subtle intent-to-cart mismatches against the user's natural-language `ruleText`.
+   - Verdicts route cleanly into three outcomes:
+     - `AUTO_APPROVE`: Mints `X-PayPal-GhostPass-Signature` and settles immediately via `createAndSettleSandboxOrder()` (`POST /v2/checkout/orders`, `intent: "CAPTURE"`).
+     - `REQUIRE_HUMAN`: Pauses settlement and issues a signed `humanOverrideToken` for **1-click Human-in-the-Loop (HITL) Authorize / Decline** in the Control Plane.
+     - `BLOCK`: Halts immediately (`$0.00` moved, `Risk 85–98/100`), surfacing the exact stripped injection payload in a red Threat Diff panel.
+
+---
+
+## 4. Novelty Comparison Matrix
+
+| Dimension | Unverified AI Browser Bot (e.g., Scraper / Muse-style) | Closed Retailer Silo (e.g., Single-Store Agent Gateway) | Traditional Bank / Card Lockout | **PayPal GhostPass (Universal Trust Layer)** |
+| :--- | :--- | :--- | :--- | :--- |
+| **AI Agent PII Exposure** | **100% Exposed** (Email, address, logins in context) | Partial / Re-entered per retailer | Blocked entirely | **0% PII** (Identity-Blind Agent with `[VAULTED_IN_PAYPAL]` sentinels) |
+| **Merchant Bot Defense** | **403 Blocked / CAPTCHA** (`BOT_SCRAPER_BLOCKED`) | Whitelisted inside 1 retailer only | Cannot transact | **Cryptographic Human Mandate** (`X-PayPal-GhostPass-Signature`) across any merchant |
+| **Prompt Injection Defense** | None — executes hidden HTML directives | Static dollar cap only | N/A | **Two-Brain Guardrail** (Deterministic regex/math + `gemini-2.5-flash` semantic audit) |
+| **Step-Up / SCA Compliance** | Fails or forces full manual checkout | Store-specific auth | Hard bank lockout | **Scoped HITL Override** (`humanOverrideToken` for over-cap purchases) |
+| **Shipping Address Delivery** | Bot scrapes/types address into checkout forms | Stored separately per store | N/A | **PayPal Vault Direct Relay** — PayPal relays address directly to merchant |
+| **Settlement & Auditability** | Fragile UI clicks, no cryptographic proof | Proprietary store logs | Blocked | **PayPal Sandbox Orders v2** (`order_id` + `intent: "CAPTURE"`) + **AG Grid** Compliance Ledger |
+
+---
+
+## 5. Technical & Commercial Feasibility Today
+
+PayPal GhostPass requires **no speculative protocols or browser extensions**—every layer runs on production-proven primitives today:
+
+1. **PayPal Developer Sandbox Orders v2 (`api-m.sandbox.paypal.com`):**
+   - `src/lib/paypal/client.ts` exchanges `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` via `POST /v1/oauth2/token` (cached in memory with a 60s refresh buffer), creates orders via `POST /v2/checkout/orders` (`intent: "CAPTURE"`), automatically captures `APPROVED` orders, and returns verifiable Sandbox Order IDs (`https://www.sandbox.paypal.com/activity/payment/<orderId>`).
+   - Includes a clean deterministic Sandbox fallback (`SBX-GP-...`) if Sandbox credentials are omitted locally or in CI.
+2. **Gemini 2.5 Flash Structured Reasoning (`@google/genai`):**
+   - `shoppingAgent.ts` and `gatekeeperAgent.ts` use `gemini-2.5-flash` (configurable via `GEMINI_MODEL`) with structured JSON schemas and deterministic fallbacks so API outages, missing keys, or rate limits never break checkout safety.
+3. **Standard Node.js Cryptography (`crypto`):**
+   - `mandateSigner.ts` uses HMAC-SHA256 (`createHmac`) + constant-time verification (`timingSafeEqual`) + SHA-256 single-use token consumption (`consumeMandateToken`) to eliminate replay attacks and parameter tampering.
+4. **Zero-Config Hybrid Persistence (`src/lib/db.ts` + `migrations/001_init.sql`):**
+   - Boots instantaneously in **In-Memory + `localStorage`** mode with zero external database setup, and upgrades seamlessly to **Neon PostgreSQL** HTTP SQL when `DATABASE_URL` is configured.
