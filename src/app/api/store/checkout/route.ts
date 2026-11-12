@@ -1,6 +1,12 @@
 import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { AuditTransaction, PRODUCT_CATALOG, Product } from "@/data/catalog";
+import {
+  AuditTransaction,
+  DEFAULT_MANDATE,
+  PRODUCT_CATALOG,
+  Product,
+  SpendingMandate,
+} from "@/data/catalog";
 import { resolveCatalogProductById } from "@/lib/agents/shoppingAgent";
 import {
   consumeMandateToken,
@@ -19,6 +25,46 @@ import {
   CheckoutRequest,
   CheckoutResponse,
 } from "@/types/ghostpass";
+
+async function safeGetMandate(): Promise<SpendingMandate> {
+  try {
+    return await getMandate();
+  } catch (err) {
+    console.warn("[/api/store/checkout] getMandate fallback:", err);
+    return {
+      ...DEFAULT_MANDATE,
+      allowedCategories: [...DEFAULT_MANDATE.allowedCategories],
+    };
+  }
+}
+
+async function safeSaveMandate(mandate: SpendingMandate): Promise<void> {
+  try {
+    await saveMandate(mandate);
+  } catch (err) {
+    console.warn("[/api/store/checkout] saveMandate skipped:", err);
+  }
+}
+
+async function safeAppendTransaction(tx: AuditTransaction): Promise<void> {
+  try {
+    await appendTransaction(tx);
+  } catch (err) {
+    console.warn("[/api/store/checkout] appendTransaction skipped:", err);
+  }
+}
+
+async function safeUpdateTransaction(
+  txId: string,
+  patch: Partial<AuditTransaction>
+): Promise<AuditTransaction[]> {
+  try {
+    return await updateTransaction(txId, patch);
+  } catch (err) {
+    console.warn("[/api/store/checkout] updateTransaction skipped:", err);
+    return [];
+  }
+}
 
 function normalizeMode(
   raw: CheckoutRequest["mode"] | undefined
@@ -68,6 +114,13 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json(
         { error: "INVALID_JSON", message: "Malformed JSON payload" },
+        { status: 400 }
+      );
+    }
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "INVALID_REQUEST", message: "JSON object body is required" },
         { status: 400 }
       );
     }
@@ -171,7 +224,7 @@ export async function POST(request: Request) {
           "403 Forbidden: Store Security Guard blocked unverified AI scraper & raw PII exposure.",
       };
 
-      await appendTransaction(tx);
+      await safeAppendTransaction(tx);
 
       const resPayload: CheckoutResponse = {
         status: "BOT_SCRAPER_BLOCKED",
@@ -223,7 +276,7 @@ export async function POST(request: Request) {
 
     const piiDetected = containsRawPii(body.agentContextPayload);
 
-    const currentMandate = await getMandate();
+    const currentMandate = await safeGetMandate();
     const dailyCapExceeded =
       isVerified && currentMandate.dailySpent + amount > currentMandate.dailyLimit;
 
@@ -255,7 +308,7 @@ export async function POST(request: Request) {
 
       let auditEvent: AuditTransaction;
       if (body.auditEventId) {
-        const updatedList = await updateTransaction(body.auditEventId, {
+        const updatedList = await safeUpdateTransaction(body.auditEventId, {
           verdict: "403_REJECTED",
           riskScore: 90,
           merchantStatusCode: 403,
@@ -309,7 +362,7 @@ export async function POST(request: Request) {
           paypalOrderId: null,
           reason: `403 Forbidden: ${failureReason}`,
         };
-        await appendTransaction(auditEvent);
+        await safeAppendTransaction(auditEvent);
       }
 
       const resPayload: CheckoutResponse = {
@@ -349,7 +402,7 @@ export async function POST(request: Request) {
       verificationHash,
     });
 
-    await saveMandate({
+    await safeSaveMandate({
       ...currentMandate,
       dailySpent: Number((currentMandate.dailySpent + amount).toFixed(2)),
     });
@@ -365,7 +418,7 @@ export async function POST(request: Request) {
 
     let auditEvent: AuditTransaction;
     if (body.auditEventId) {
-      const updatedList = await updateTransaction(body.auditEventId, {
+      const updatedList = await safeUpdateTransaction(body.auditEventId, {
         verdict: "APPROVED",
         riskScore: isHumanOverride ? 15 : 8,
         merchantStatusCode: 200,
@@ -419,7 +472,7 @@ export async function POST(request: Request) {
         paypalOrderId: settled.paypalOrderId,
         reason: approvedReason,
       };
-      await appendTransaction(auditEvent);
+      await safeAppendTransaction(auditEvent);
     }
 
     const resPayload: CheckoutResponse = {

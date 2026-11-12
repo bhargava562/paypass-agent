@@ -28,6 +28,11 @@ function normalizeMode(
   return "GHOSTPASS";
 }
 
+function finiteOr(raw: unknown, fallback: number): number {
+  const num = Number(raw);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 function normalizeMandate(
   input: AgentExecuteRequest["mandate"],
   fallback: Awaited<ReturnType<typeof getMandate>>
@@ -35,16 +40,14 @@ function normalizeMandate(
   return {
     id: input?.id ?? fallback.id ?? DEFAULT_MANDATE.id,
     ruleText: input?.ruleText ?? fallback.ruleText,
-    dailyCap: Number(
-      input?.dailyCap ?? input?.dailyLimit ?? fallback.dailyLimit
+    dailyCap: finiteOr(input?.dailyCap ?? input?.dailyLimit, fallback.dailyLimit),
+    spentToday: finiteOr(
+      input?.spentToday ?? input?.dailySpent,
+      fallback.dailySpent
     ),
-    spentToday: Number(
-      input?.spentToday ?? input?.dailySpent ?? fallback.dailySpent
-    ),
-    autoApproveLimit: Number(
-      input?.autoApproveLimit ??
-        input?.maxPerTransaction ??
-        fallback.maxPerTransaction
+    autoApproveLimit: finiteOr(
+      input?.autoApproveLimit ?? input?.maxPerTransaction,
+      fallback.maxPerTransaction
     ),
     blockGiftCards: input?.blockGiftCards ?? fallback.blockGiftCards,
     blockSubscriptions:
@@ -53,9 +56,41 @@ function normalizeMandate(
   };
 }
 
+async function safeGetMandate() {
+  try {
+    return await getMandate();
+  } catch (err) {
+    console.warn("[/api/agent/execute] getMandate fallback:", err);
+    return { ...DEFAULT_MANDATE, allowedCategories: [...DEFAULT_MANDATE.allowedCategories] };
+  }
+}
+
+async function safeAppendTransaction(tx: AuditTransaction) {
+  try {
+    await appendTransaction(tx);
+  } catch (err) {
+    console.warn("[/api/agent/execute] appendTransaction skipped:", err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as Partial<AgentExecuteRequest>;
+    let body: Partial<AgentExecuteRequest>;
+    try {
+      body = (await request.json()) as Partial<AgentExecuteRequest>;
+    } catch {
+      return NextResponse.json(
+        { error: "INVALID_JSON", message: "Malformed JSON payload" },
+        { status: 400 }
+      );
+    }
+
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "INVALID_REQUEST", message: "JSON object body is required" },
+        { status: 400 }
+      );
+    }
     const customItem =
       body.customItem &&
       typeof body.customItem.title === "string" &&
@@ -161,7 +196,7 @@ export async function POST(request: Request) {
     }
 
     // Stage 2: GhostPass Gatekeeper Audit
-    const storedMandate = await getMandate();
+    const storedMandate = await safeGetMandate();
     const mandate = normalizeMandate(body.mandate, storedMandate);
 
     const verdict = await runGatekeeperAudit({
@@ -207,7 +242,7 @@ export async function POST(request: Request) {
         paypalOrderId: null,
         reason: verdict.reason,
       };
-      await appendTransaction(tx);
+      await safeAppendTransaction(tx);
 
       const payload: AgentExecuteResponse = {
         sessionId,
@@ -257,7 +292,7 @@ export async function POST(request: Request) {
         paypalOrderId: null,
         reason: verdict.reason,
       };
-      await appendTransaction(tx);
+      await safeAppendTransaction(tx);
 
       const payload: AgentExecuteResponse = {
         sessionId,

@@ -33,6 +33,8 @@ const VALID_CATEGORIES = new Set<ProductCategory>([
 
 export async function GET() {
   await connection();
+  const paypalConfigured = isPayPalSandboxConfigured();
+  const sandboxBuyerLabel = maskEmail(process.env.PAYPAL_SANDBOX_BUYER_EMAIL);
   try {
     const [mandate, transactions] = await Promise.all([
       getMandate(),
@@ -40,17 +42,24 @@ export async function GET() {
     ]);
     return NextResponse.json({
       backend: getStorageBackendMode(),
-      paypalConfigured: isPayPalSandboxConfigured(),
-      sandboxBuyerLabel: maskEmail(process.env.PAYPAL_SANDBOX_BUYER_EMAIL),
+      paypalConfigured,
+      sandboxBuyerLabel,
       mandate,
       transactions,
     });
   } catch (err) {
-    console.error("[GET /api/state] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to load application state" },
-      { status: 500 }
-    );
+    console.warn("[GET /api/state] Database fallback to in-memory default:", err);
+    return NextResponse.json({
+      backend: "memory-localstorage",
+      degraded: true,
+      paypalConfigured,
+      sandboxBuyerLabel,
+      mandate: {
+        ...DEFAULT_MANDATE,
+        allowedCategories: [...DEFAULT_MANDATE.allowedCategories],
+      },
+      transactions: [],
+    });
   }
 }
 
@@ -66,7 +75,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body || typeof body !== "object" || !("action" in body)) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || !("action" in body)) {
       return NextResponse.json(
         { error: "Missing required action field" },
         { status: 400 }
@@ -81,14 +90,23 @@ export async function POST(request: Request) {
 
     if (payload.action === "save_mandate") {
       const m = payload.mandate;
-      if (!m || typeof m !== "object") {
+      if (!m || typeof m !== "object" || Array.isArray(m)) {
         return NextResponse.json(
           { error: "mandate object is required" },
           { status: 400 }
         );
       }
 
-      const existing = await getMandate();
+      let existing: SpendingMandate;
+      try {
+        existing = await getMandate();
+      } catch (err) {
+        console.warn("[POST /api/state] getMandate fallback:", err);
+        existing = {
+          ...DEFAULT_MANDATE,
+          allowedCategories: [...DEFAULT_MANDATE.allowedCategories],
+        };
+      }
       const parsedMax = Number(m.maxPerTransaction);
       const maxPerTransaction = Number.isFinite(parsedMax)
         ? Math.min(1000, Math.max(5, parsedMax))
@@ -129,8 +147,17 @@ export async function POST(request: Request) {
         updatedAt: new Date().toISOString(),
       };
 
-      const mandate = await saveMandate(sanitized);
-      return NextResponse.json({ backend: getStorageBackendMode(), mandate });
+      try {
+        const mandate = await saveMandate(sanitized);
+        return NextResponse.json({ backend: getStorageBackendMode(), mandate });
+      } catch (err) {
+        console.warn("[POST /api/state] saveMandate fallback:", err);
+        return NextResponse.json({
+          backend: "memory-localstorage",
+          degraded: true,
+          mandate: sanitized,
+        });
+      }
     }
 
     if (payload.action === "decline_override") {
@@ -162,11 +189,25 @@ export async function POST(request: Request) {
     }
 
     if (payload.action === "reset") {
-      const state = await resetDemoState();
-      return NextResponse.json({
-        backend: getStorageBackendMode(),
-        ...state,
-      });
+      try {
+        const state = await resetDemoState();
+        return NextResponse.json({
+          backend: getStorageBackendMode(),
+          ...state,
+        });
+      } catch (err) {
+        console.warn("[POST /api/state] reset fallback:", err);
+        return NextResponse.json({
+          backend: "memory-localstorage",
+          degraded: true,
+          mandate: {
+            ...DEFAULT_MANDATE,
+            allowedCategories: [...DEFAULT_MANDATE.allowedCategories],
+            updatedAt: new Date().toISOString(),
+          },
+          transactions: [],
+        });
+      }
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

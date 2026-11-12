@@ -1,6 +1,10 @@
 import { createHash, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { AuditTransaction } from "@/data/catalog";
+import {
+  AuditTransaction,
+  DEFAULT_MANDATE,
+  SpendingMandate,
+} from "@/data/catalog";
 import { resolveCatalogProductById } from "@/lib/agents/shoppingAgent";
 import {
   consumeMandateToken,
@@ -16,6 +20,45 @@ import {
 import { createAndSettleSandboxOrder } from "@/lib/paypal/client";
 import { PayPalSettleRequest } from "@/types/ghostpass";
 
+async function safeGetMandate(): Promise<SpendingMandate> {
+  try {
+    return await getMandate();
+  } catch (err) {
+    console.warn("[/api/paypal/settle] getMandate fallback:", err);
+    return {
+      ...DEFAULT_MANDATE,
+      allowedCategories: [...DEFAULT_MANDATE.allowedCategories],
+    };
+  }
+}
+
+async function safeSaveMandate(mandate: SpendingMandate): Promise<void> {
+  try {
+    await saveMandate(mandate);
+  } catch (err) {
+    console.warn("[/api/paypal/settle] saveMandate skipped:", err);
+  }
+}
+
+async function safeAppendTransaction(tx: AuditTransaction): Promise<void> {
+  try {
+    await appendTransaction(tx);
+  } catch (err) {
+    console.warn("[/api/paypal/settle] appendTransaction skipped:", err);
+  }
+}
+
+async function safeUpdateTransaction(
+  txId: string,
+  patch: Partial<AuditTransaction>
+): Promise<void> {
+  try {
+    await updateTransaction(txId, patch);
+  } catch (err) {
+    console.warn("[/api/paypal/settle] updateTransaction skipped:", err);
+  }
+}
+
 export async function POST(request: Request) {
   try {
     let body: Partial<PayPalSettleRequest>;
@@ -28,7 +71,13 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!body || typeof body !== "object" || !body.productId) {
+    if (
+      !body ||
+      typeof body !== "object" ||
+      Array.isArray(body) ||
+      typeof body.productId !== "string" ||
+      !body.productId.trim()
+    ) {
       return NextResponse.json(
         {
           error: "INVALID_SETTLEMENT_REQUEST",
@@ -103,7 +152,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const currentMandate = await getMandate();
+    const currentMandate = await safeGetMandate();
     if (currentMandate.dailySpent + amount > currentMandate.dailyLimit) {
       return NextResponse.json(
         {
@@ -140,13 +189,13 @@ export async function POST(request: Request) {
       verificationHash,
     });
 
-    await saveMandate({
+    await safeSaveMandate({
       ...currentMandate,
       dailySpent: Number((currentMandate.dailySpent + amount).toFixed(2)),
     });
 
     if (body.auditEventId) {
-      await updateTransaction(body.auditEventId, {
+      await safeUpdateTransaction(body.auditEventId, {
         verdict: "APPROVED",
         riskScore: overrideCheck.valid ? 15 : 8,
         merchantStatusCode: 200,
@@ -177,7 +226,7 @@ export async function POST(request: Request) {
         paypalOrderId: settled.paypalOrderId,
         reason: `Settled $${amount.toFixed(2)} via PayPal Orders v2 (${settled.paypalOrderId}).`,
       };
-      await appendTransaction(tx);
+      await safeAppendTransaction(tx);
     }
 
     return NextResponse.json({
