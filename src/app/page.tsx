@@ -25,6 +25,7 @@ import {
 } from "@/types/ghostpass";
 import { AppShellHeader, AppViewMode } from "@/components/AppShellHeader";
 import { ControlPlaneView } from "@/components/ControlPlaneView";
+import { LandingHero } from "@/components/LandingHero";
 import { StoreNavbar } from "@/components/StoreNavbar";
 import { ProductGrid } from "@/components/ProductGrid";
 import {
@@ -79,7 +80,8 @@ async function syncServerState(payload: Record<string, unknown>): Promise<boolea
 }
 
 export default function PayPalGhostPassApp() {
-  const [activeView, setActiveView] = useState<AppViewMode>("console");
+  const [activeView, setActiveView] = useState<AppViewMode>("overview");
+  const [mcpModalOpen, setMcpModalOpen] = useState(false);
   const [mandate, setMandate] = useState<SpendingMandate>(DEFAULT_MANDATE);
   const [transactions, setTransactions] = useState<AuditTransaction[]>([]);
   const [manualOrders, setManualOrders] = useState<AuditTransaction[]>([]);
@@ -326,8 +328,10 @@ export default function PayPalGhostPassApp() {
 
   async function handleRunAgent(
     promptOverride?: string,
-    customItem?: CustomItemInput
+    customItem?: CustomItemInput,
+    modeOverride?: AgentMode
   ) {
+    const activeMode = modeOverride ?? mode;
     const fallbackCustomPrompt =
       customItem && customItem.title.trim()
         ? `Buy ${customItem.title.trim()} ($${Number(customItem.price).toFixed(
@@ -349,13 +353,13 @@ export default function PayPalGhostPassApp() {
       setSimulation({
         ...INITIAL_SIMULATION,
         stage: "agent_browsing",
-        mode,
+        mode: activeMode,
         prompt: activePrompt,
-        piiExposedPct: mode === "standard_bot" ? 100 : 0,
+        piiExposedPct: activeMode === "standard_bot" ? 100 : 0,
         merchantBadge: "Agent Scanning NovaTech Catalog...",
         gatekeeperNotes: [
           `• Running "${activePrompt}" via Two-Brain Pipeline...`,
-          mode === "standard_bot"
+          activeMode === "standard_bot"
             ? "• Warning: Unverified bot attaches raw user PII."
             : "• Blindfolded VIP session active — 0% PII shared with agent.",
         ],
@@ -366,7 +370,7 @@ export default function PayPalGhostPassApp() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: activePrompt,
-          mode: mode === "standard_bot" ? "STANDARD_BOT" : "GHOSTPASS",
+          mode: activeMode === "standard_bot" ? "STANDARD_BOT" : "GHOSTPASS",
           sessionId: sessionApiKey,
           customItem,
           mandate: {
@@ -394,7 +398,7 @@ export default function PayPalGhostPassApp() {
         setSimulation({
           ...INITIAL_SIMULATION,
           stage: "complete",
-          mode,
+          mode: activeMode,
           prompt: activePrompt,
           verdict: "BLOCKED",
           riskScore: execData.riskScore,
@@ -417,7 +421,7 @@ export default function PayPalGhostPassApp() {
         setSimulation({
           ...INITIAL_SIMULATION,
           stage: "complete",
-          mode,
+          mode: activeMode,
           prompt: activePrompt,
           verdict: "NEEDS_APPROVAL",
           riskScore: execData.riskScore,
@@ -441,13 +445,13 @@ export default function PayPalGhostPassApp() {
       setSimulation({
         ...INITIAL_SIMULATION,
         stage: "paypal_settling",
-        mode,
+        mode: activeMode,
         prompt: activePrompt,
         piiExposedPct: execData.piiExposedPct,
         selectedProduct: execData.selectedProduct,
         proposedTotal: execData.proposedCartTotal,
         merchantBadge:
-          mode === "standard_bot"
+          activeMode === "standard_bot"
             ? "NovaTech Anti-Bot Firewall Checking..."
             : "Settling via PayPal Sandbox Orders v2...",
         gatekeeperNotes: execData.gatekeeperNotes,
@@ -493,7 +497,7 @@ export default function PayPalGhostPassApp() {
         setSimulation({
           ...INITIAL_SIMULATION,
           stage: "complete",
-          mode,
+          mode: activeMode,
           prompt: activePrompt,
           verdict: "403_REJECTED",
           riskScore: 86,
@@ -524,7 +528,7 @@ export default function PayPalGhostPassApp() {
       setSimulation({
         ...INITIAL_SIMULATION,
         stage: "complete",
-        mode,
+        mode: activeMode,
         prompt: activePrompt,
         verdict: "APPROVED",
         riskScore: execData.riskScore,
@@ -553,7 +557,7 @@ export default function PayPalGhostPassApp() {
       setSimulation({
         ...INITIAL_SIMULATION,
         stage: "complete",
-        mode,
+        mode: activeMode,
         prompt: activePrompt,
         verdict: "BLOCKED",
         riskScore: 90,
@@ -709,11 +713,43 @@ export default function PayPalGhostPassApp() {
     await refreshFromServerState();
   }
 
+  function handleChangeView(nextView: AppViewMode) {
+    setActiveView(nextView);
+    if (typeof window === "undefined") return;
+    requestAnimationFrame(() => {
+      if (nextView === "console") {
+        document
+          .getElementById("control-plane")
+          ?.scrollIntoView({ behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  }
+
+  function handleOpenMcpConfig() {
+    if (activeView === "storefront") {
+      setActiveView("console");
+    }
+    setMcpModalOpen(true);
+  }
+
+  function handleTryInteractiveSandbox() {
+    const presetPrompt =
+      "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60";
+    setMode("ghostpass");
+    setPrompt(presetPrompt);
+    handleChangeView("console");
+    void handleRunAgent(presetPrompt, undefined, "ghostpass");
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col bg-[#FAFAFA]">
       <AppShellHeader
         activeView={activeView}
-        onChangeView={setActiveView}
+        onChangeView={handleChangeView}
+        onOpenMcpConfig={handleOpenMcpConfig}
+        onLaunchDemo={() => handleChangeView("console")}
         paypalConfigured={paypalConfigured}
         storageBackend={storageBackend}
         merchantOrdersCount={merchantOrders.length}
@@ -721,8 +757,14 @@ export default function PayPalGhostPassApp() {
         onResetDemo={handleResetDemo}
       />
 
-      {activeView === "console" ? (
+      {activeView !== "storefront" ? (
         <main className="flex-1">
+          <LandingHero
+            onTrySandbox={handleTryInteractiveSandbox}
+            onOpenStorefront={() => handleChangeView("storefront")}
+            simulation={simulation}
+            maxPerTx={mandate.maxPerTransaction}
+          />
           <ControlPlaneView
             mandate={mandate}
             onUpdateMandate={persistMandate}
@@ -739,6 +781,8 @@ export default function PayPalGhostPassApp() {
             transactions={transactions}
             onApproveOverride={handleApproveOverride}
             onRejectOverride={handleRejectOverride}
+            mcpOpen={mcpModalOpen}
+            onMcpOpenChange={setMcpModalOpen}
           />
         </main>
       ) : (

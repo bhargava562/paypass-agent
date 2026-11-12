@@ -59,6 +59,8 @@ interface ControlPlaneViewProps {
   transactions: AuditTransaction[];
   onApproveOverride: () => void;
   onRejectOverride: () => void;
+  mcpOpen?: boolean;
+  onMcpOpenChange?: (open: boolean) => void;
 }
 
 const PRESET_SCENARIOS = [
@@ -115,9 +117,16 @@ export function ControlPlaneView({
   transactions,
   onApproveOverride,
   onRejectOverride,
+  mcpOpen,
+  onMcpOpenChange,
 }: ControlPlaneViewProps) {
   const [editingRule, setEditingRule] = useState(false);
-  const [mcpModalOpen, setMcpModalOpen] = useState(false);
+  const [internalMcpOpen, setInternalMcpOpen] = useState(false);
+  const mcpModalOpen = mcpOpen ?? internalMcpOpen;
+  const setMcpModalOpen = (next: boolean) => {
+    setInternalMcpOpen(next);
+    onMcpOpenChange?.(next);
+  };
   const [configTab, setConfigTab] = useState<ConfigTab>("mcp");
 
   // Custom Payload Composer State
@@ -152,12 +161,13 @@ export function ControlPlaneView({
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         setEditingRule(false);
-        setMcpModalOpen(false);
+        setInternalMcpOpen(false);
+        onMcpOpenChange?.(false);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [editingRule, mcpModalOpen]);
+  }, [editingRule, mcpModalOpen, onMcpOpenChange]);
 
   const dailyRemaining = Math.max(0, mandate.dailyLimit - mandate.dailySpent);
   const maskedToken = `gp_live_••••_${sessionApiKey.slice(-4)}`;
@@ -468,7 +478,10 @@ export function ControlPlaneView({
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+    <div
+      id="control-plane"
+      className="mx-auto w-full max-w-7xl scroll-mt-20 space-y-4 px-4 py-6 sm:px-6"
+    >
       {/* ZONE 1: Top Mandate & Live Execution Bar */}
       <section
         aria-label="PayPal Mandate Vault and Execution Bar"
@@ -539,7 +552,7 @@ export function ControlPlaneView({
               className={`inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] disabled:cursor-not-allowed disabled:opacity-50 lg:flex-initial ${
                 isGhostPass
                   ? "bg-[#0070E0] text-white shadow-xs"
-                  : "text-zinc-600 hover:text-[#09090B]"
+                  : "text-zinc-700 hover:bg-white/70 hover:text-[#09090B]"
               }`}
             >
               <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -553,8 +566,8 @@ export function ControlPlaneView({
               onClick={() => onModeChange("standard_bot")}
               className={`inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] disabled:cursor-not-allowed disabled:opacity-50 lg:flex-initial ${
                 !isGhostPass
-                  ? "bg-white text-rose-700 shadow-xs"
-                  : "text-zinc-600 hover:text-[#09090B]"
+                  ? "bg-[#DC2626] text-white shadow-xs"
+                  : "text-zinc-700 hover:bg-white/70 hover:text-[#09090B]"
               }`}
             >
               <Bot className="h-3.5 w-3.5" aria-hidden="true" />
@@ -782,7 +795,7 @@ export function ControlPlaneView({
           </div>
 
           <pre
-            className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded-xl border p-3.5 font-mono text-xs leading-relaxed ${
+            className={`min-h-0 flex-1 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words rounded-xl border p-3.5 font-mono text-xs leading-6 ${
               simRawPii
                 ? "border-rose-900/50 bg-[#1A0B10] text-rose-200"
                 : "border-zinc-800 bg-[#0B1120] text-sky-200"
@@ -837,7 +850,7 @@ export function ControlPlaneView({
               </div>
               <div className="flex items-center justify-between gap-2 border-b border-zinc-200/70 pb-1.5">
                 <dt className="shrink-0 text-zinc-600">Policy Check</dt>
-                <dd className="whitespace-pre-wrap break-all text-right font-semibold text-[#09090B]">
+                <dd className="whitespace-pre-wrap break-words text-right font-semibold text-[#09090B]">
                   {policyCheckValue}
                 </dd>
               </div>
@@ -880,7 +893,7 @@ export function ControlPlaneView({
                 )}
               </div>
             ) : simulation.verdict !== "NEEDS_APPROVAL" ? (
-              <p className="border-t border-zinc-200/70 pt-2 font-mono text-[11px] leading-relaxed text-zinc-600 whitespace-pre-wrap break-all">
+              <p className="border-t border-zinc-200/70 pt-2 font-mono text-[11px] leading-relaxed text-zinc-600 whitespace-pre-wrap break-words">
                 {isIdle
                   ? "Awaiting agent execution or preset trigger."
                   : simulation.gatekeeperNotes[0] ??
@@ -937,7 +950,7 @@ export function ControlPlaneView({
             </span>
           </div>
 
-          <pre className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded-xl border border-zinc-800 bg-[#0B1120] p-3.5 font-mono text-xs leading-relaxed text-emerald-200">
+          <pre className="min-h-0 flex-1 overflow-y-auto overflow-x-auto whitespace-pre-wrap break-words rounded-xl border border-zinc-800 bg-[#0B1120] p-3.5 font-mono text-xs leading-6 text-emerald-200">
             {JSON.stringify(outputPayloadJson, null, 2)}
           </pre>
 
