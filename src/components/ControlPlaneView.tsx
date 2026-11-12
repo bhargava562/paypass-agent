@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import dynamic from "next/dynamic";
 import {
   AlertTriangle,
@@ -101,6 +107,8 @@ function escapeSingleQuotesForShell(raw: string): string {
   return raw.replace(/'/g, "'\\''");
 }
 
+const subscribeNoop = () => () => {};
+
 function truncateMiddle(value: string, head = 10, tail = 6): string {
   if (value.length <= head + tail + 3) return value;
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
@@ -119,7 +127,7 @@ export function ControlPlaneView({
   isRunning,
   isSettlingOverride,
   simulation,
-  transactions,
+  transactions = [],
   onApproveOverride,
   onRejectOverride,
   mcpOpen,
@@ -159,6 +167,18 @@ export function ControlPlaneView({
 
   const [copiedTarget, setCopiedTarget] = useState<"mcp" | "curl" | null>(null);
   const [ledgerFilter, setLedgerFilter] = useState<LedgerFilter>("all");
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const baseOrigin = useSyncExternalStore(
+    subscribeNoop,
+    () => window.location.origin,
+    () => "http://localhost:3000"
+  );
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   const isEditingOpen = editingRule && !isRunning;
   const isGhostPass = mode === "ghostpass";
@@ -177,8 +197,12 @@ export function ControlPlaneView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [editingRule, mcpModalOpen, onMcpOpenChange]);
 
-  const dailyRemaining = Math.max(0, mandate.dailyLimit - mandate.dailySpent);
-  const maskedToken = `gp_live_••••_${sessionApiKey.slice(-4)}`;
+  const dailyRemaining = Math.max(
+    0,
+    (mandate?.dailyLimit ?? 150) - (mandate?.dailySpent ?? 0)
+  );
+  const safeToken = sessionApiKey || "gp_live_0pii_sandbox_v2";
+  const maskedToken = `gp_live_••••_${safeToken.slice(-4)}`;
 
   const kpis = useMemo(() => {
     const settledTotal = transactions
@@ -287,16 +311,12 @@ export function ControlPlaneView({
     try {
       await navigator.clipboard.writeText(value);
       setCopiedTarget(target);
-      setTimeout(() => setCopiedTarget(null), 1800);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopiedTarget(null), 1800);
     } catch {
       // Clipboard unavailable
     }
   }
-
-  const baseOrigin =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : "http://localhost:3000";
 
   const mcpJsonSnippet = JSON.stringify(
     {
@@ -490,6 +510,7 @@ export function ControlPlaneView({
       id="control-plane"
       className="mx-auto w-full max-w-7xl scroll-mt-20 space-y-4 px-4 py-6 sm:px-6"
     >
+      <h1 className="sr-only">PayPal GhostPass Control Plane</h1>
       {/* ZONE 1: Top Mandate & Live Execution Bar */}
       <section
         aria-label="PayPal Mandate Vault and Execution Bar"
@@ -1058,18 +1079,21 @@ export function ControlPlaneView({
           <div
             role="dialog"
             aria-modal="true"
-            aria-label="MCP Server Configuration"
+            aria-labelledby="mcp-modal-title"
             className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#0B1120] p-5 text-white shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-wide text-white">
+              <h3
+                id="mcp-modal-title"
+                className="font-mono text-xs font-bold uppercase tracking-wide text-white"
+              >
                 MCP Config · @paypal/agent-toolkit
               </h3>
               <button
                 type="button"
                 aria-label="Close MCP config modal"
                 onClick={() => setMcpModalOpen(false)}
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/15 bg-white/5 text-zinc-300 transition hover:bg-white/15 hover:text-white"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-white/15 bg-white/5 text-zinc-300 transition hover:bg-white/15 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
@@ -1154,26 +1178,32 @@ export function ControlPlaneView({
           <form
             role="dialog"
             aria-modal="true"
-            aria-label="Edit Mandate"
+            aria-labelledby="mandate-modal-title"
             onSubmit={handleSaveRule}
             className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <h3 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+              <h3
+                id="mandate-modal-title"
+                className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]"
+              >
                 Edit Mandate
               </h3>
               <button
                 type="button"
                 aria-label="Close mandate modal"
                 onClick={() => setEditingRule(false)}
-                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0]"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
             {ruleError && (
-              <p className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 font-mono text-xs text-rose-700">
+              <p
+                role="alert"
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 font-mono text-xs text-rose-700"
+              >
                 {ruleError}
               </p>
             )}

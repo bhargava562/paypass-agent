@@ -66,6 +66,14 @@ const INITIAL_SIMULATION: SimulationRunState = {
   pendingOverrideTransactionId: null,
 };
 
+async function safeParseJson<T>(res: Response): Promise<T | null> {
+  try {
+    return (await res.json()) as T;
+  } catch {
+    return null;
+  }
+}
+
 async function syncServerState(payload: Record<string, unknown>): Promise<boolean> {
   try {
     const res = await fetch("/api/state", {
@@ -151,8 +159,16 @@ export default function PayPalGhostPassApp() {
         writeClientMandate(data.mandate);
       }
       if (Array.isArray(data.transactions)) {
-        setTransactions(data.transactions);
-        writeClientTransactions(data.transactions);
+        const localTxs = readClientTransactions();
+        const resolvedTxs =
+          data.backend !== "neon-postgres" &&
+          data.transactions.length === 0 &&
+          localTxs &&
+          localTxs.length > 0
+            ? localTxs
+            : data.transactions;
+        setTransactions(resolvedTxs);
+        writeClientTransactions(resolvedTxs);
       }
     } catch {
       // Offline / localStorage fallback
@@ -491,7 +507,10 @@ export default function PayPalGhostPassApp() {
 
       if (runIdRef.current !== currentRunId) return;
 
-      const checkoutData = (await checkoutResRaw.json()) as CheckoutResponse;
+      const checkoutData = await safeParseJson<CheckoutResponse>(checkoutResRaw);
+      if (!checkoutData) {
+        throw new Error(`Checkout failed (${checkoutResRaw.status})`);
+      }
 
       if (checkoutResRaw.status === 403 || checkoutData.httpStatus === 403) {
         setSimulation({
@@ -610,7 +629,10 @@ export default function PayPalGhostPassApp() {
 
       if (runIdRef.current !== activeRunId) return;
 
-      const data = (await resRaw.json()) as CheckoutResponse;
+      const data = await safeParseJson<CheckoutResponse>(resRaw);
+      if (!data) {
+        throw new Error(`Override failed (${resRaw.status})`);
+      }
 
       if (!resRaw.ok) {
         setSimulation((prev) => ({

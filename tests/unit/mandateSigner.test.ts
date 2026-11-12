@@ -89,6 +89,13 @@ describe("mandateSigner (HMAC-SHA256)", () => {
     );
     expect(validOverride.valid).toBe(true);
 
+    const rejectedOverrideAsMandate = verifyGhostPassMandate(
+      overrideToken,
+      115.0,
+      "prod-headphones-xm5"
+    );
+    expect(rejectedOverrideAsMandate.valid).toBe(false);
+
     const standardMandate = signGhostPassMandate({
       productId: "prod-headphones-xm5",
       maxAmount: 115.0,

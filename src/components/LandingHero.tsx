@@ -14,22 +14,24 @@ import { SimulationRunState } from "@/data/catalog";
 interface LandingHeroProps {
   onLaunchControlPlane: () => void;
   onExploreStore: () => void;
-  sessionApiKey: string;
-  maxPerTx: number;
-  simulation: SimulationRunState;
+  sessionApiKey?: string;
+  maxPerTx?: number;
+  simulation?: SimulationRunState;
 }
 
 export function LandingHero({
   onLaunchControlPlane,
   onExploreStore,
-  sessionApiKey,
-  maxPerTx,
+  sessionApiKey = "gp_live_0pii_sandbox_v2",
+  maxPerTx = 60,
   simulation,
 }: LandingHeroProps) {
   const [selectedLayer, setSelectedLayer] = useState<0 | 1 | 2>(1);
-  const maskedToken = `gp_live_••••_${sessionApiKey.slice(-4)}`;
+  const safeMaxPerTx = Number.isFinite(Number(maxPerTx)) ? Number(maxPerTx) : 60;
+  const safeToken = sessionApiKey || "gp_live_0pii_sandbox_v2";
+  const maskedToken = `gp_live_••••_${safeToken.slice(-4)}`;
   const liveOrder =
-    simulation.verdict === "APPROVED" && simulation.paypalOrderId
+    simulation?.verdict === "APPROVED" && simulation?.paypalOrderId
       ? simulation.paypalOrderId
       : null;
 
@@ -121,7 +123,7 @@ export function LandingHero({
                   </div>
 
                   <span className="rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-300">
-                    ACTIVE · ${maxPerTx.toFixed(0)} CAP
+                    ACTIVE · ${safeMaxPerTx.toFixed(0)} CAP
                   </span>
                 </div>
 
@@ -161,6 +163,7 @@ export function LandingHero({
                   {/* Node 1 */}
                   <button
                     type="button"
+                    aria-pressed={selectedLayer === 0}
                     onClick={() => setSelectedLayer(0)}
                     className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-200 ${
                       selectedLayer === 0
@@ -179,6 +182,7 @@ export function LandingHero({
                   {/* Node 2 */}
                   <button
                     type="button"
+                    aria-pressed={selectedLayer === 1}
                     onClick={() => setSelectedLayer(1)}
                     className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-200 ${
                       selectedLayer === 1
@@ -190,13 +194,14 @@ export function LandingHero({
                       Gemini 2.5 + HMAC Guardrail
                     </span>
                     <span className="shrink-0 rounded-full border border-cyan-400/30 bg-cyan-500/15 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-cyan-300">
-                      ${maxPerTx.toFixed(0)} Cap · Injection Blocked
+                      ${safeMaxPerTx.toFixed(0)} Cap · Injection Blocked
                     </span>
                   </button>
 
                   {/* Node 3 */}
                   <button
                     type="button"
+                    aria-pressed={selectedLayer === 2}
                     onClick={() => setSelectedLayer(2)}
                     className={`flex w-full cursor-pointer items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors duration-200 ${
                       selectedLayer === 2

@@ -20,6 +20,8 @@ import {
 import { createAndSettleSandboxOrder } from "@/lib/paypal/client";
 import { PayPalSettleRequest } from "@/types/ghostpass";
 
+export const maxDuration = 30;
+
 async function safeGetMandate(): Promise<SpendingMandate> {
   try {
     return await getMandate();

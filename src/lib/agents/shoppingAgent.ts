@@ -15,6 +15,24 @@ export interface ShoppingAgentInput {
   skipLlm?: boolean;
 }
 
+const GEMINI_TIMEOUT_MS = 8_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("LLM_TIMEOUT")), ms);
+    promise.then(
+      (val) => {
+        clearTimeout(timer);
+        resolve(val);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
 const PRODUCT_ALIAS_MAP: Record<string, string> = {
   "prod-kb-01": "prod-kbd-q1",
   "prod-kbd-k2": "prod-kbd-q1",
@@ -103,7 +121,7 @@ async function fetchChannel3CatalogNotes(query: string): Promise<string | null> 
       }
     );
     if (!res.ok) return null;
-    const data = await res.json();
+    const data: unknown = await res.json();
     return JSON.stringify(data).slice(0, 600);
   } catch {
     return null;
@@ -154,7 +172,7 @@ function buildInjectedItemsFromMetadata(
   return [];
 }
 
-function normalizeCustomCategory(
+export function normalizeCustomCategory(
   rawCategory: string | undefined,
   title: string
 ): ProductCategory {
@@ -362,7 +380,8 @@ export async function runBlindShoppingAgent(
       const channel3Context = await fetchChannel3CatalogNotes(input.prompt);
       const ai = new GoogleGenAI({ apiKey });
 
-      const response = await ai.models.generateContent({
+      const response = await withTimeout(
+        ai.models.generateContent({
         model: modelName,
         contents: [
           "You are a blindfolded e-commerce shopping assistant.",
@@ -388,7 +407,9 @@ export async function runBlindShoppingAgent(
             required: ["productId", "quantity", "reasoning"],
           },
         },
-      });
+        }),
+        GEMINI_TIMEOUT_MS
+      );
 
       const rawText = response.text;
       if (rawText) {

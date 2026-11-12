@@ -69,13 +69,13 @@ function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
 
 function VerdictCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const verdict = params.value as AuditTransaction["verdict"] | undefined;
-  const styles: Record<string, string> = {
+  const styles: Record<AuditTransaction["verdict"], string> = {
     APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
     BLOCKED: "border-rose-200 bg-rose-50 text-rose-800",
     "403_REJECTED": "border-rose-200 bg-rose-50 text-rose-800",
     NEEDS_APPROVAL: "border-amber-200 bg-amber-50 text-amber-800",
   };
-  const labels: Record<string, string> = {
+  const labels: Record<AuditTransaction["verdict"], string> = {
     APPROVED: "SETTLED",
     BLOCKED: "INJECTION BLOCKED",
     "403_REJECTED": "403 SCRAPER BLOCK",
@@ -85,10 +85,12 @@ function VerdictCellRenderer(params: ICellRendererParams<AuditTransaction>) {
     <div className="flex h-full items-center">
       <span
         className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold leading-none tracking-tight ${
-          styles[verdict ?? ""] ?? "border-zinc-200 bg-zinc-100 text-zinc-700"
+          verdict
+            ? styles[verdict]
+            : "border-zinc-200 bg-zinc-100 text-zinc-700"
         }`}
       >
-        {labels[verdict ?? ""] ?? verdict}
+        {verdict ? labels[verdict] : ""}
       </span>
     </div>
   );

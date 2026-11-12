@@ -19,6 +19,8 @@ import {
   MandateConfig,
 } from "@/types/ghostpass";
 
+export const maxDuration = 30;
+
 function normalizeMode(
   raw: AgentExecuteRequest["mode"] | undefined
 ): AgentExecutionMode {
@@ -41,9 +43,9 @@ function normalizeMandate(
     id: input?.id ?? fallback.id ?? DEFAULT_MANDATE.id,
     ruleText: input?.ruleText ?? fallback.ruleText,
     dailyCap: finiteOr(input?.dailyCap ?? input?.dailyLimit, fallback.dailyLimit),
-    spentToday: finiteOr(
-      input?.spentToday ?? input?.dailySpent,
-      fallback.dailySpent
+    spentToday: Math.max(
+      fallback.dailySpent,
+      finiteOr(input?.spentToday ?? input?.dailySpent, fallback.dailySpent)
     ),
     autoApproveLimit: finiteOr(
       input?.autoApproveLimit ?? input?.maxPerTransaction,

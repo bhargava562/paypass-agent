@@ -313,10 +313,12 @@ function StoreCheckoutModalContent({
           </div>
           <div className="space-y-1 font-mono text-[11px] text-zinc-600">
             <p>
-              Buyer: {simulation.agentContextPreview.buyerName} (
-              {simulation.agentContextPreview.buyerEmail})
+              Buyer: {simulation.agentContextPreview?.buyerName ?? "N/A"} (
+              {simulation.agentContextPreview?.buyerEmail ?? "N/A"})
             </p>
-            <p>Ship To: {simulation.agentContextPreview.shippingAddr}</p>
+            <p>
+              Ship To: {simulation.agentContextPreview?.shippingAddr ?? "N/A"}
+            </p>
           </div>
         </div>
 
@@ -350,7 +352,7 @@ function StoreCheckoutModalContent({
                   GhostPass Blocked Checkout ($0.00 Moved)
                 </h3>
                 <p className="mt-1 text-xs text-rose-700">
-                  {simulation.gatekeeperNotes[0]}
+                  {simulation.gatekeeperNotes?.[0] ?? "Checkout blocked by GhostPass."}
                 </p>
               </div>
             </div>

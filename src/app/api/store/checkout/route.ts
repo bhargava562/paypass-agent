@@ -7,7 +7,10 @@ import {
   Product,
   SpendingMandate,
 } from "@/data/catalog";
-import { resolveCatalogProductById } from "@/lib/agents/shoppingAgent";
+import {
+  normalizeCustomCategory,
+  resolveCatalogProductById,
+} from "@/lib/agents/shoppingAgent";
 import {
   consumeMandateToken,
   verifyGhostPassMandate,
@@ -25,6 +28,8 @@ import {
   CheckoutRequest,
   CheckoutResponse,
 } from "@/types/ghostpass";
+
+export const maxDuration = 30;
 
 async function safeGetMandate(): Promise<SpendingMandate> {
   try {
@@ -148,7 +153,7 @@ export async function POST(request: Request) {
           sku: "CUSTOM-MCP",
           name: customBody.title.trim(),
           brand: customBody.merchant?.trim() || "Custom Merchant",
-          category: "Accessories",
+          category: normalizeCustomCategory(customBody.category, customBody.title),
           price: Number(Number(customBody.price).toFixed(2)),
           rating: 4.8,
           reviewsCount: 1,

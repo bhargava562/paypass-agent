@@ -56,7 +56,22 @@ export function consumeMandateToken(
 }
 
 function getHmacSecret(): string {
-  return process.env.GHOSTPASS_HMAC_SECRET || DEFAULT_DEV_HMAC_SECRET;
+  const configured = process.env.GHOSTPASS_HMAC_SECRET?.trim();
+  if (configured && configured !== "replace_with_random_32_byte_secret") {
+    return configured;
+  }
+  if (process.env.NODE_ENV === "production") {
+    const paypalSecret = process.env.PAYPAL_CLIENT_SECRET?.trim();
+    if (paypalSecret && paypalSecret !== "your_sandbox_client_secret") {
+      return createHash("sha256")
+        .update(`ghostpass-hmac-v1:${paypalSecret}`)
+        .digest("hex");
+    }
+    throw new Error(
+      "GHOSTPASS_HMAC_SECRET must be configured in production"
+    );
+  }
+  return DEFAULT_DEV_HMAC_SECRET;
 }
 
 function computeDigest(encodedPayload: string): string {
@@ -94,7 +109,7 @@ export function signHumanOverrideToken(
   });
 }
 
-export function verifyGhostPassMandate(
+function verifySignatureCore(
   signature: string | undefined | null,
   expectedAmount: number,
   productId: string,
@@ -168,13 +183,30 @@ export function verifyGhostPassMandate(
   return { valid: true, payload: parsed };
 }
 
+export function verifyGhostPassMandate(
+  signature: string | undefined | null,
+  expectedAmount: number,
+  productId: string,
+  nowMs: number = Date.now()
+): MandateVerificationResult {
+  const result = verifySignatureCore(signature, expectedAmount, productId, nowMs);
+  if (!result.valid) return result;
+  if (result.payload?.kind && result.payload.kind !== "mandate") {
+    return {
+      valid: false,
+      reason: "Human override token cannot be used as an automated mandate",
+    };
+  }
+  return result;
+}
+
 export function verifyHumanOverrideToken(
   token: string | undefined | null,
   expectedAmount: number,
   productId: string,
   nowMs: number = Date.now()
 ): MandateVerificationResult {
-  const result = verifyGhostPassMandate(token, expectedAmount, productId, nowMs);
+  const result = verifySignatureCore(token, expectedAmount, productId, nowMs);
   if (!result.valid) return result;
   if (result.payload?.kind !== "human_override") {
     return { valid: false, reason: "Token is not a human override token" };
