@@ -1,6 +1,6 @@
 # PayPal GhostPass — UI/UX & Demo Blueprint
 
-> **Design Philosophy:** Clean 2-View Product Infrastructure — A Layman-Clear **GhostPass Control Plane** paired with a 100% Unobstructed **NovaTech Storefront**, with zero fake browser chrome and zero floating extension popups.
+> **Design Philosophy:** Zero-clutter Fintech Infrastructure — A crisp **GhostPass Wallet** (Privacy.com + Stripe PaymentIntent aesthetic) paired with a 100% Unobstructed **NovaTech Store**, with zero fake browser chrome, zero tutorial walls, and zero floating extension popups.
 
 ---
 
@@ -8,15 +8,14 @@
 
 ```mermaid
 flowchart TD
-    Shell["AppShellHeader (PayPal GhostPass · Live Sandbox Badge · 2-View Switcher)"]
-    Shell -->|"Tab 1 (Default)"| CP["View 1: GhostPass Control Plane"]
-    Shell -->|"Tab 2"| Store["View 2: NovaTech Storefront"]
+    Shell["AppShellHeader (PayPal GhostPass · Live Sandbox Pill · GhostPass Wallet <-> NovaTech Store)"]
+    Shell -->|"Tab 1 (Default)"| Wallet["View 1: GhostPass Wallet"]
+    Shell -->|"Tab 2"| Store["View 2: NovaTech Store"]
 
-    CP --> Left["Col 1: Mandate Vault + Zero-PII Key + Live Agent Sandbox Runner + cURL/MCP"]
-    CP --> Right["Col 2: 4-Step Plain-English Pipeline (Privacy Shield -> Scam Check -> Store Gate -> PayPal Settlement)"]
-    CP --> Bottom["Bottom: KPI Cards + Filterable AG Grid Compliance Ledger"]
+    Wallet --> Left["Left 38%: Dark Obsidian GhostPass Virtual Card + External Agent Command Bar (cURL/MCP)"]
+    Wallet --> Right["Right 62%: Stripe-Style Live Authorization Receipt (3-Step Strip + Monospace KV Receipt) + Compact AG Grid Ledger"]
 
-    Store --> Retail["Pure E-Commerce Catalog (Real 4:3 Photos, Add to Cart, Buy Now, Merchant Orders Popover)"]
+    Store --> Retail["Pure E-Commerce Catalog (Real 4:3 Photos, Add to Cart, Buy Now, Slide-Over Merchant Orders Drawer)"]
 ```
 
 ---
@@ -24,32 +23,27 @@ flowchart TD
 ## 2. View Specifications
 
 ### App Shell Header (`src/components/AppShellHeader.tsx`)
-- **Left:** **PayPal GhostPass** wordmark, `Agentic Commerce Authorization & Settlement Infrastructure` subtitle, and live green **`PayPal Sandbox Connected`** status pill.
-- **Center Switcher:** **`GhostPass Control Plane`** ⟷ **`NovaTech Storefront`** (with live order count badge).
-- **Right:** Storage backend indicator (`Neon SQL` / `Hybrid Memory`) + **`Reset`** button.
+- **Left:** **PayPal GhostPass** wordmark and compact **`Sandbox Connected`** / **`Sandbox Ready`** indicator pill.
+- **Center Switcher:** **`GhostPass Wallet`** ⟷ **`NovaTech Store`** (with live order count badge).
+- **Right:** Compact storage badge (`Neon SQL` / `Memory`) + **`Reset`** button.
 
-### View 1 — PayPal GhostPass Control Plane (`src/components/ControlPlaneView.tsx`)
-- **Column 1 — Mandate Vault & Live Agent Sandbox Runner:**
-  - **PayPal Vault & Mandate Card:** Connected Sandbox buyer (`sb-***@...`), editable plain-English rule, auto-approve cap (`$60`), daily budget bar (`$0 / $150`), and copyable Zero-PII Session Key (`gp_live_...`).
-  - **Live Agent Sandbox Runner:** Mode selector (`Unverified AI Bot` vs. `PayPal GhostPass`), prompt input, 3 one-click demo buttons, and expandable **`API / MCP` cURL payload** drawer.
-- **Column 2 — 4-Step Plain-English Live Execution Pipeline:**
-  1. **Privacy Shield:** Plain-English comparison showing *Shared With AI Agent* vs. *Stayed Locked in PayPal Vault*.
-  2. **Scam & Rule Check:** Plain-English rule check & prompt-injection catch explanation.
-  3. **Store Checkout Gate:** `HTTP 403 Bot-Block` vs. `Verified Human Mandate — Instant Checkout`.
-  4. **PayPal Sandbox Settlement:** Real PayPal Sandbox Order ID, USD amount, **`Verify in PayPal Sandbox ↗`** button, and **1-Click `Approve & Pay via PayPal`** / **`Reject`** controls on over-budget runs.
-- **Bottom Panel — Compliance & Audit Ledger (`src/components/AuditLedgerGrid.tsx`):**
-  - 3 KPI cards (`Total Settled via PayPal`, `Scam / Unauthorized Spend Blocked`, `Personal Data Leaked: 0%`).
-  - Filter tabs (`All`, `Paid on PayPal`, `Blocked`, `Needs Approval`) + `ag-grid-react` ledger with clickable PayPal Sandbox links.
+### View 1 — GhostPass Wallet (`src/components/ControlPlaneView.tsx`)
+- **Left Column (`38%`) — Virtual Payment Pass & External Agent Runner:**
+  - **Dark Obsidian GhostPass Virtual Card (`#0B1120` with subtle `#0070E0` glow):** Displays `ACTIVE · 0% PII` pill, masked copyable token (`gp_live_••••_8921`), inline editable spending rule & auto-approve cap, remaining daily allowance (`$150.00 left`), and vaulted PayPal buyer label (`sb-***@...`).
+  - **External Agent Command Bar:** Mode toggle (`Unverified Bot` vs. `GhostPass Agent`), single-line prompt + `Run` button, 3 compact preset pills (`Keyboard · $48`, `USB-C Cable · $19`, `Headphones · $115`), and toggleable `API` (`cURL` / MCP) drawer.
+- **Right Column (`62%`) — Live Authorization Receipt & Transaction Ledger:**
+  - **Stripe-Style Authorization Receipt:** Clean 3-node horizontal progression (`1. Blind Context` ── `2. Mandate Audit` ── `3. PayPal Settlement`), 2-column monospace receipt table (`Merchant`, `Item`, `Identity Exposed`, `Security Check`, `Store Firewall`, clickable `PayPal Order ID`), and inline **`Authorize $115.00 via PayPal`** / **`Decline`** bar when human sign-off triggers.
+  - **Compact Transaction Ledger (`src/components/AuditLedgerGrid.tsx`):** Inline filter pills (`All`, `Settled`, `Blocked`, `Pending`), compact KPI badges (`Settled`, `Blocked`, `PII Leaked: 0%`), and crisp `260px` `ag-grid-react` table (`Time`, `Pass`, `Item`, `Amount`, `Status`, `PII`, `PayPal Order ID`).
 
-### View 2 — NovaTech Storefront (`src/components/StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`)
+### View 2 — NovaTech Store (`src/components/StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`)
 - 100% pure, unobstructed consumer electronics & technical book store (`#FAFAFA` canvas, `#FFFFFF` cards, `Plus Jakarta Sans` + `Inter` + `JetBrains Mono`, real `4:3` Unsplash photography).
-- Includes **`Orders (N)`** fulfillment popover displaying agent-placed PayPal orders arriving at the merchant with `Shipping Relayed by PayPal` and clickable PayPal Sandbox Order IDs.
+- Includes **`Orders (N)`** button opening a right-side slide-over **Merchant Orders Drawer** displaying agent-placed and customer PayPal orders with `Shipping Relayed by PayPal` / `Direct Customer Checkout` and clickable PayPal Sandbox Order IDs.
 
 ---
 
 ## 3. 90-Second Hackathon Pitch Script
 
-1. **0:00–0:20 (The Bot Problem):** On the **Control Plane**, select `Unverified AI Bot` and click **`1. Buy Wireless Keyboard ($48)`**. Step 1 flashes **100% Personal Info Exposed**; Step 3 flashes **403 Bot-Block**; Step 4 stays at **`$0.00`**.
-2. **0:20–0:45 (GhostPass + Live PayPal Settlement):** Switch to `PayPal GhostPass` and click **`1. Buy Wireless Keyboard ($48)`** again. Step 1 shows **`0% Personal Info Exposed`**, Step 3 clears NovaTech's firewall, and Step 4 mints a real **PayPal Sandbox Order ID** (`Verify in PayPal Sandbox ↗`).
-3. **0:45–1:10 (Prompt Injection Caught):** Click **`2. Buy USB-C Cable ($19 — Hidden Gift Card Trap)`**. Step 2 catches the hidden `$75` Steam Digital Gift Card injection immediately (`Risk 98/100 · $0.00 Moved`).
-4. **1:10–1:30 (1-Click Human Override + Merchant Storefront):** Click **`3. Buy Studio Headphones ($115)`**. Step 4 pauses cleanly; tap **`Approve $115.00 & Pay via PayPal`** to settle a second live PayPal Order ID, then switch to **`NovaTech Storefront`** → **`Orders`** to show the settled order arriving cleanly at the store.
+1. **0:00–0:20 (The Bot Problem):** In **GhostPass Wallet**, toggle `Unverified Bot` and click **`Keyboard · $48`**. The Live Authorization Receipt shows `PII Leaked (100%)` and `403 Blocked` on Store Firewall while settled amount remains `$0.00`.
+2. **0:20–0:45 (GhostPass + Live PayPal Settlement):** Switch to `GhostPass Agent` and click **`Keyboard · $48`** again. `Identity Exposed` drops to `0% · Blindfolded`, Store Firewall shows `200 OK · Verified`, and PayPal Sandbox mints a live Order ID (`Verify ↗`).
+3. **0:45–1:10 (Prompt Injection Caught):** Click **`USB-C Cable · $19`**. `2. Mandate Audit` halts the hidden `$75` Steam Gift Card injection immediately (`Risk 98/100 · $0.00 Moved`).
+4. **1:10–1:30 (Human Override + Merchant Orders Drawer):** Click **`Headphones · $115`**. Click **`Authorize $115.00 via PayPal`** in the receipt action bar, then switch to **`NovaTech Store`** → **`Orders`** to view the settled order inside the Merchant Orders drawer.

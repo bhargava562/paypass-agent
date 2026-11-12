@@ -33,44 +33,35 @@ export function AppShellHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-        {/* Left: Product Infrastructure Identity */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-[#003087] to-[#0070E0] text-white shadow-xs">
-            <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+        {/* Left: Crisp Fintech Brand + Live Sandbox Status */}
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0B1120] text-white shadow-xs">
+            <ShieldCheck className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-sm font-bold tracking-tight text-[#09090B] sm:text-base">
-                PayPal GhostPass
-              </span>
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                  paypalConfigured
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : "border-sky-200 bg-sky-50 text-sky-700"
-                }`}
-              >
-                <span
-                  aria-hidden="true"
-                  className={`h-1.5 w-1.5 rounded-full ${
-                    paypalConfigured ? "bg-emerald-500" : "bg-sky-500"
-                  }`}
-                />
-                {paypalConfigured
-                  ? "PayPal Sandbox Connected"
-                  : "PayPal Sandbox Ready"}
-              </span>
-            </div>
-            <p className="hidden text-[11px] text-zinc-500 sm:block">
-              Agentic Commerce Authorization &amp; Settlement Infrastructure
-            </p>
-          </div>
+          <span className="font-display text-sm font-bold tracking-tight text-[#09090B] sm:text-base">
+            PayPal GhostPass
+          </span>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+              paypalConfigured
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-sky-200 bg-sky-50 text-sky-700"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-1.5 w-1.5 rounded-full ${
+                paypalConfigured ? "bg-emerald-500" : "bg-sky-500"
+              }`}
+            />
+            {paypalConfigured ? "Sandbox Connected" : "Sandbox Ready"}
+          </span>
         </div>
 
         {/* Center: Clean 2-View Switcher */}
         <nav
           aria-label="Application view switcher"
-          className="order-3 flex w-full items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 p-1 sm:order-2 sm:w-auto"
+          className="order-3 flex w-full items-center justify-center rounded-full border border-zinc-200 bg-zinc-100 p-0.5 sm:order-2 sm:w-auto"
         >
           <button
             type="button"
@@ -83,7 +74,7 @@ export function AppShellHeader({
             }`}
           >
             <Zap className="h-3.5 w-3.5 text-[#0070E0]" aria-hidden="true" />
-            <span>GhostPass Control Plane</span>
+            <span>GhostPass Wallet</span>
           </button>
 
           <button
@@ -97,7 +88,7 @@ export function AppShellHeader({
             }`}
           >
             <ShoppingBag className="h-3.5 w-3.5 text-zinc-800" aria-hidden="true" />
-            <span>NovaTech Storefront</span>
+            <span>NovaTech Store</span>
             {merchantOrdersCount > 0 && (
               <span className="rounded-full bg-[#0070E0]/10 px-1.5 py-0.5 font-mono text-[10px] font-bold text-[#003087]">
                 {merchantOrdersCount}
@@ -107,11 +98,11 @@ export function AppShellHeader({
           </button>
         </nav>
 
-        {/* Right: Storage Status & Reset Demo */}
+        {/* Right: Storage Mode + Reset */}
         <div className="order-2 flex items-center gap-2 sm:order-3">
           <span className="hidden items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 font-mono text-[10px] font-medium text-zinc-600 md:inline-flex">
             <Database className="h-3 w-3 text-zinc-500" aria-hidden="true" />
-            {storageBackend === "neon-postgres" ? "Neon SQL" : "Hybrid Memory"}
+            {storageBackend === "neon-postgres" ? "Neon SQL" : "Memory"}
           </span>
 
           <button

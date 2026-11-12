@@ -9,6 +9,7 @@ import {
   ShoppingBag,
   Store,
   Trash2,
+  X,
 } from "lucide-react";
 import {
   AuditTransaction,
@@ -53,6 +54,7 @@ export function StoreNavbar({
   const [ordersOpen, setOrdersOpen] = useState(false);
   const cartRef = useRef<HTMLDivElement | null>(null);
   const ordersRef = useRef<HTMLDivElement | null>(null);
+  const drawerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!cartOpen && !ordersOpen) return;
@@ -67,7 +69,11 @@ export function StoreNavbar({
       if (cartRef.current && !cartRef.current.contains(target)) {
         setCartOpen(false);
       }
-      if (ordersRef.current && !ordersRef.current.contains(target)) {
+      const inOrdersButton =
+        ordersRef.current && ordersRef.current.contains(target);
+      const inOrdersDrawer =
+        drawerRef.current && drawerRef.current.contains(target);
+      if (!inOrdersButton && !inOrdersDrawer) {
         setOrdersOpen(false);
       }
     }
@@ -82,11 +88,12 @@ export function StoreNavbar({
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price, 0);
 
   return (
-    <div
-      role="region"
-      aria-label="NovaTech Store navigation"
-      className="z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md sm:sticky sm:top-[57px]"
-    >
+    <>
+      <div
+        role="region"
+        aria-label="NovaTech Store navigation"
+        className="z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md sm:sticky sm:top-[57px]"
+      >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         {/* Left: Pure Merchant Brand + Category Links */}
         <div className="flex items-center gap-7">
@@ -145,7 +152,7 @@ export function StoreNavbar({
             />
           </div>
 
-          {/* Merchant Order History Popover */}
+          {/* Merchant Order History Drawer Trigger */}
           <div ref={ordersRef} className="relative">
             <button
               type="button"
@@ -161,75 +168,6 @@ export function StoreNavbar({
               <span className="hidden sm:inline">Orders</span>
               <span className="font-mono">({merchantOrders.length})</span>
             </button>
-
-            {ordersOpen && (
-              <div
-                role="dialog"
-                aria-label="NovaTech Order Fulfillment"
-                className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl sm:w-96"
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-[#09090B]">
-                    NovaTech Order Fulfillment ({merchantOrders.length})
-                  </h3>
-                  <span className="text-[11px] font-medium text-emerald-700">
-                    PayPal Verified
-                  </span>
-                </div>
-
-                {merchantOrders.length === 0 ? (
-                  <p className="py-5 text-center text-xs text-zinc-500">
-                    No settled orders yet. Complete a purchase manually or via
-                    the GhostPass Control Plane.
-                  </p>
-                ) : (
-                  <ul className="max-h-64 space-y-2.5 overflow-y-auto">
-                    {merchantOrders.map((order) => (
-                      <li
-                        key={order.id}
-                        className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="font-semibold text-[#09090B]">
-                            {order.requestedProductName}
-                          </span>
-                          <span className="font-mono font-bold text-[#09090B]">
-                            ${order.totalAmount.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 flex items-center justify-between text-[11px] text-zinc-600">
-                          <span className="inline-flex items-center gap-1 text-emerald-700">
-                            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                            {order.id.startsWith("tx-human-")
-                              ? "Direct Customer Checkout"
-                              : "Shipping Relayed by PayPal"}
-                          </span>
-                          {order.paypalOrderId &&
-                            (isRealPayPalOrderId(order.paypalOrderId) ? (
-                              <a
-                                href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(order.paypalOrderId)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 font-mono font-semibold text-[#005BB5] hover:underline"
-                              >
-                                {order.paypalOrderId}
-                                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                                <span className="sr-only">
-                                  (opens in new tab)
-                                </span>
-                              </a>
-                            ) : (
-                              <span className="font-mono font-semibold text-zinc-700">
-                                {order.paypalOrderId}
-                              </span>
-                            ))}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Shopping Cart */}
@@ -369,5 +307,91 @@ export function StoreNavbar({
         </nav>
       </div>
     </div>
+
+      {/* Live Merchant Orders Slide-Over Drawer */}
+      {ordersOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-zinc-950/35 backdrop-blur-[1px]">
+          <aside
+            ref={drawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="NovaTech Merchant Orders"
+            className="flex h-full w-full max-w-md flex-col border-l border-zinc-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+              <div>
+                <h2 className="text-sm font-semibold text-[#09090B]">
+                  Merchant Orders ({merchantOrders.length})
+                </h2>
+                <p className="text-[11px] font-medium text-emerald-700">
+                  PayPal Verified Fulfillment
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close merchant orders drawer"
+                onClick={() => setOrdersOpen(false)}
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5">
+              {merchantOrders.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-10 text-center text-xs text-zinc-500">
+                  No settled orders yet.
+                </div>
+              ) : (
+                <ul className="space-y-3">
+                  {merchantOrders.map((order) => (
+                    <li
+                      key={order.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 p-3.5 text-xs"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="font-semibold text-[#09090B]">
+                          {order.requestedProductName}
+                        </span>
+                        <span className="font-mono font-bold text-[#09090B]">
+                          ${order.totalAmount.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-zinc-600">
+                        <span className="inline-flex items-center gap-1 text-emerald-700">
+                          <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                          {order.id.startsWith("tx-human-")
+                            ? "Direct Customer Checkout"
+                            : "Shipping Relayed by PayPal"}
+                        </span>
+                        {order.paypalOrderId &&
+                          (isRealPayPalOrderId(order.paypalOrderId) ? (
+                            <a
+                              href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(order.paypalOrderId)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 font-mono font-semibold text-[#005BB5] hover:underline"
+                            >
+                              {order.paypalOrderId}
+                              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                              <span className="sr-only">
+                                (opens in new tab)
+                              </span>
+                            </a>
+                          ) : (
+                            <span className="font-mono font-semibold text-zinc-700">
+                              {order.paypalOrderId}
+                            </span>
+                          ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </aside>
+        </div>
+      )}
+    </>
   );
 }
