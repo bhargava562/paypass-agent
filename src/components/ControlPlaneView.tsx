@@ -9,11 +9,13 @@ import {
   CheckCircle2,
   Code2,
   Copy,
+  Database,
   Edit3,
   ExternalLink,
   Lock,
   Play,
   Plus,
+  RotateCcw,
   ShieldAlert,
   ShieldCheck,
   SlidersHorizontal,
@@ -61,6 +63,9 @@ interface ControlPlaneViewProps {
   onRejectOverride: () => void;
   mcpOpen?: boolean;
   onMcpOpenChange?: (open: boolean) => void;
+  storageBackend?: string;
+  isBusy?: boolean;
+  onResetDemo?: () => void;
 }
 
 const PRESET_SCENARIOS = [
@@ -119,6 +124,9 @@ export function ControlPlaneView({
   onRejectOverride,
   mcpOpen,
   onMcpOpenChange,
+  storageBackend = "memory-localstorage",
+  isBusy = false,
+  onResetDemo,
 }: ControlPlaneViewProps) {
   const [editingRule, setEditingRule] = useState(false);
   const [internalMcpOpen, setInternalMcpOpen] = useState(false);
@@ -514,6 +522,13 @@ export function ControlPlaneView({
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            <span
+              title={`Storage: ${storageBackend}`}
+              className="hidden h-10 items-center gap-1.5 rounded-xl border border-[#E4E4E7] bg-zinc-50 px-3 font-mono text-xs font-medium text-zinc-700 xl:inline-flex"
+            >
+              <Database className="h-3.5 w-3.5 text-zinc-500" aria-hidden="true" />
+              {storageBackend === "neon-postgres" ? "Neon SQL" : "Memory"}
+            </span>
             <button
               type="button"
               disabled={isRunning || isSavingRule}
@@ -534,6 +549,18 @@ export function ControlPlaneView({
               <Code2 className="h-3.5 w-3.5 text-[#38BDF8]" aria-hidden="true" />
               <span>MCP Config</span>
             </button>
+            {onResetDemo && (
+              <button
+                type="button"
+                aria-label="Reset demo state"
+                disabled={isBusy || isRunning || isSettlingOverride}
+                onClick={onResetDemo}
+                className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[#E4E4E7] bg-white px-3 text-xs font-semibold text-zinc-700 transition-colors duration-200 hover:border-zinc-300 hover:bg-zinc-50 hover:text-[#09090B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Reset</span>
+              </button>
+            )}
           </div>
         </div>
 

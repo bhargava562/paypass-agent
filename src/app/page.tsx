@@ -715,56 +715,46 @@ export default function PayPalGhostPassApp() {
 
   function handleChangeView(nextView: AppViewMode) {
     setActiveView(nextView);
-    if (typeof window === "undefined") return;
-    requestAnimationFrame(() => {
-      if (nextView === "console") {
-        document
-          .getElementById("control-plane")
-          ?.scrollIntoView({ behavior: "smooth" });
-      } else {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
-    });
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   function handleOpenMcpConfig() {
-    if (activeView === "storefront") {
-      setActiveView("console");
-    }
+    setActiveView("console");
     setMcpModalOpen(true);
-  }
-
-  function handleTryInteractiveSandbox() {
-    const presetPrompt =
-      "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60";
-    setMode("ghostpass");
-    setPrompt(presetPrompt);
-    handleChangeView("console");
-    void handleRunAgent(presetPrompt, undefined, "ghostpass");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-[#FAFAFA]">
+    <div
+      className={`relative flex min-h-screen flex-col ${
+        activeView === "overview" ? "bg-[#060B19]" : "bg-[#FAFAFA]"
+      }`}
+    >
       <AppShellHeader
         activeView={activeView}
         onChangeView={handleChangeView}
         onOpenMcpConfig={handleOpenMcpConfig}
-        onLaunchDemo={() => handleChangeView("console")}
+        onOpenControlPlane={() => handleChangeView("console")}
         paypalConfigured={paypalConfigured}
-        storageBackend={storageBackend}
         merchantOrdersCount={merchantOrders.length}
-        isBusy={isRunning || isSettlingOverride}
-        onResetDemo={handleResetDemo}
       />
 
-      {activeView !== "storefront" ? (
+      {activeView === "overview" ? (
         <main className="flex-1">
           <LandingHero
-            onTrySandbox={handleTryInteractiveSandbox}
-            onOpenStorefront={() => handleChangeView("storefront")}
-            simulation={simulation}
+            onLaunchControlPlane={() => handleChangeView("console")}
+            onExploreStore={() => handleChangeView("storefront")}
+            sessionApiKey={sessionApiKey}
             maxPerTx={mandate.maxPerTransaction}
+            simulation={simulation}
           />
+        </main>
+      ) : activeView === "console" ? (
+        <main className="flex-1">
           <ControlPlaneView
             mandate={mandate}
             onUpdateMandate={persistMandate}
@@ -783,6 +773,9 @@ export default function PayPalGhostPassApp() {
             onRejectOverride={handleRejectOverride}
             mcpOpen={mcpModalOpen}
             onMcpOpenChange={setMcpModalOpen}
+            storageBackend={storageBackend}
+            isBusy={isRunning || isSettlingOverride}
+            onResetDemo={handleResetDemo}
           />
         </main>
       ) : (

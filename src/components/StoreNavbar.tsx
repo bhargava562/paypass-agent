@@ -92,7 +92,7 @@ export function StoreNavbar({
       <div
         role="region"
         aria-label="NovaTech Store navigation"
-        className="z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md sm:sticky sm:top-[57px]"
+        className="z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md sm:sticky sm:top-16"
       >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         {/* Left: Pure Merchant Brand + Category Links */}
