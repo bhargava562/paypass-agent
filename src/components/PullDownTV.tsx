@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -20,7 +21,19 @@ import {
   SimulationRunState,
   SpendingMandate,
 } from "@/data/catalog";
-import { AuditLedgerGrid } from "@/components/AuditLedgerGrid";
+
+const AuditLedgerGrid = dynamic(
+  () =>
+    import("@/components/AuditLedgerGrid").then((mod) => mod.AuditLedgerGrid),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex h-[340px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 text-xs text-slate-400">
+        Loading Audit Ledger...
+      </div>
+    ),
+  }
+);
 
 interface PullDownTVProps {
   open: boolean;
@@ -28,6 +41,8 @@ interface PullDownTVProps {
   simulation: SimulationRunState;
   mandate: SpendingMandate;
   transactions: AuditTransaction[];
+  isRunning: boolean;
+  isSettlingOverride: boolean;
   onApproveOverride: () => void;
   onRejectOverride: () => void;
   onResetDemo: () => void;
@@ -48,6 +63,8 @@ export function PullDownTV({
   simulation,
   mandate,
   transactions,
+  isRunning,
+  isSettlingOverride,
   onApproveOverride,
   onRejectOverride,
   onResetDemo,
@@ -56,12 +73,20 @@ export function PullDownTV({
 
   const isGhostPass = simulation.mode === "ghostpass";
   const isIdle = simulation.verdict === "IDLE" && simulation.stage === "idle";
+  const exceedsPerTx = simulation.proposedTotal > mandate.maxPerTransaction;
+  const overBudgetHeading = exceedsPerTx
+    ? `Over Cap ($${simulation.proposedTotal.toFixed(2)} > $${mandate.maxPerTransaction})`
+    : `Daily Limit ($${(mandate.dailySpent + simulation.proposedTotal).toFixed(2)} > $${mandate.dailyLimit})`;
 
   return (
     <aside
       aria-label="Behind the Scenes X-Ray Television"
+      aria-hidden={!open}
+      inert={!open}
       className={`fixed inset-x-0 top-0 z-40 transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-        open ? "translate-y-0" : "-translate-y-full pointer-events-none"
+        open
+          ? "visible translate-y-0"
+          : "invisible -translate-y-full pointer-events-none"
       }`}
     >
       <div className="tv-scanlines max-h-[88vh] overflow-y-auto border-b border-slate-700/80 bg-slate-950/96 text-slate-100 shadow-[0_30px_90px_rgba(2,6,23,0.85)] backdrop-blur-2xl">
@@ -119,8 +144,9 @@ export function PullDownTV({
 
               <button
                 type="button"
+                disabled={isRunning}
                 onClick={onResetDemo}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-white"
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-300 transition hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
                 Reset Demo
@@ -342,7 +368,7 @@ export function PullDownTV({
                         : simulation.verdict === "BLOCKED"
                         ? "Threat Caught · $0.00 Moved"
                         : simulation.verdict === "NEEDS_APPROVAL"
-                        ? `Over Budget ($${simulation.proposedTotal.toFixed(2)} > $${mandate.maxPerTransaction})`
+                        ? overBudgetHeading
                         : simulation.verdict === "403_REJECTED"
                         ? "Vault Untouched · $0.00 Moved"
                         : `Guarding $${mandate.maxPerTransaction}/tx Limit`}
@@ -373,15 +399,17 @@ export function PullDownTV({
                     <div className="mt-3 flex items-center gap-2">
                       <button
                         type="button"
+                        disabled={isSettlingOverride}
                         onClick={onApproveOverride}
-                        className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400"
+                        className="flex-1 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-950 shadow-sm transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         ✓ Approve ${simulation.proposedTotal.toFixed(2)} Override
                       </button>
                       <button
                         type="button"
+                        disabled={isSettlingOverride}
                         onClick={onRejectOverride}
-                        className="rounded-xl border border-rose-500/50 bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/25"
+                        className="rounded-xl border border-rose-500/50 bg-rose-500/15 px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/25 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         Reject
                       </button>
@@ -392,7 +420,8 @@ export function PullDownTV({
                 <div className="mt-3 border-t border-slate-800/80 pt-2.5 text-[11px] text-slate-400">
                   Daily Spend:{" "}
                   <span className="font-semibold text-slate-200">
-                    ${mandate.dailySpent.toFixed(2)} / ${mandate.dailyLimit.toFixed(2)}
+                    ${mandate.dailySpent.toFixed(2)} / $
+                    {mandate.dailyLimit.toFixed(2)}
                   </span>
                 </div>
               </div>

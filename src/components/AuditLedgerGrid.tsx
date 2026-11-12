@@ -31,14 +31,16 @@ function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const mode = params.value as AuditTransaction["mode"] | undefined;
   if (mode === "ghostpass") {
     return (
-      <span className="inline-flex items-center rounded-full border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
-        🔵 GhostPass
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
+        <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+        GhostPass
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-full border border-slate-600 bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300">
-      ⚪ Standard Bot
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300">
+      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+      Standard Bot
     </span>
   );
 }
@@ -88,18 +90,20 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
   const columnDefs = useMemo<ColDef<AuditTransaction>[]>(
     () => [
       {
-        headerName: "Time",
+        headerName: "Time (UTC)",
         field: "timestamp",
-        width: 110,
+        width: 115,
         valueFormatter: (p) => {
           if (!p.value) return "";
           const d = new Date(String(p.value));
           return Number.isNaN(d.getTime())
             ? String(p.value)
-            : d.toLocaleTimeString([], {
+            : d.toLocaleTimeString("en-US", {
                 hour: "2-digit",
                 minute: "2-digit",
                 second: "2-digit",
+                timeZone: "UTC",
+                hour12: false,
               });
         },
       },
