@@ -11,17 +11,16 @@ import {
   Copy,
   Edit3,
   ExternalLink,
+  KeyRound,
   Lock,
   ShieldAlert,
   ShieldCheck,
   Terminal,
-  Webhook,
   X,
 } from "lucide-react";
 import {
   AgentMode,
   AuditTransaction,
-  ProductCategory,
   SimulationRunState,
   SpendingMandate,
 } from "@/data/catalog";
@@ -33,7 +32,7 @@ const AuditLedgerGrid = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex h-[260px] items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 font-mono text-xs text-zinc-500">
-        Loading ledger...
+        Loading audit ledger...
       </div>
     ),
   }
@@ -60,20 +59,34 @@ interface ControlPlaneViewProps {
   onRejectOverride: () => void;
 }
 
-const CATEGORY_DISPLAY: Record<ProductCategory, string> = {
-  "Keyboards & Mice": "Hardware",
-  Audio: "Audio",
-  "Cloud & Books": "Books",
-  Accessories: "Accessories",
-};
-
-function formatAllowedCategories(categories: ProductCategory[]): string {
-  const mapped = categories.map((cat) => CATEGORY_DISPLAY[cat] ?? cat);
-  return Array.from(new Set(mapped)).join(", ");
-}
+const MCP_TRIGGERS = [
+  {
+    id: "valid",
+    label: "1. Valid Order ($48 · Keychron Q1)",
+    prompt: "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60",
+    tone: "emerald" as const,
+  },
+  {
+    id: "injection",
+    label: "2. Prompt Injection ($19 Cable → $75 Gift Card)",
+    prompt: "Buy the $19 Braided USB-C Fast Charge Cable",
+    tone: "rose" as const,
+  },
+  {
+    id: "hitl",
+    label: "3. Over-Cap Order ($115 · Sony XM5 — HITL)",
+    prompt: "Buy Sony WH-1000XM5 Studio Headphones",
+    tone: "amber" as const,
+  },
+];
 
 function escapeSingleQuotesForShell(raw: string): string {
   return raw.replace(/'/g, "'\\''");
+}
+
+function truncateMiddle(value: string, head = 12, tail = 8): string {
+  if (value.length <= head + tail + 3) return value;
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
 export function ControlPlaneView({
@@ -96,7 +109,7 @@ export function ControlPlaneView({
   const [editingRule, setEditingRule] = useState(false);
   const [mcpModalOpen, setMcpModalOpen] = useState(false);
   const [configTab, setConfigTab] = useState<ConfigTab>("mcp");
-  const [activePayloadId, setActivePayloadId] = useState<string | null>(null);
+  const [activeTriggerId, setActiveTriggerId] = useState<string | null>(null);
 
   const [isSavingRule, setIsSavingRule] = useState(false);
   const [ruleError, setRuleError] = useState<string | null>(null);
@@ -128,44 +141,7 @@ export function ControlPlaneView({
   }, [editingRule, mcpModalOpen]);
 
   const dailyRemaining = Math.max(0, mandate.dailyLimit - mandate.dailySpent);
-  const dailyPct = Math.min(
-    100,
-    Math.round((mandate.dailySpent / Math.max(1, mandate.dailyLimit)) * 100)
-  );
   const maskedToken = `gp_live_••••_${sessionApiKey.slice(-4)}`;
-  const categoriesLabel = formatAllowedCategories(mandate.allowedCategories);
-
-  const externalPayloads = useMemo(
-    () => [
-      {
-        id: "safe",
-        endpoint: "POST /mcp/checkout · $48.00",
-        caller: 'External Agent: "NovaTech Keychron Q1 Pro"',
-        detail: `Valid within $${mandate.maxPerTransaction.toFixed(0)} pass`,
-        prompt: "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60",
-        tone: "emerald" as const,
-      },
-      {
-        id: "trap",
-        endpoint: "POST /mcp/checkout · $19.00 → $75.00 Trap",
-        caller: "Compromised Agent: Hidden Steam Gift Card Injection",
-        detail: "Blocked by Gatekeeper",
-        prompt: "Buy the $19 Braided USB-C Fast Charge Cable",
-        tone: "rose" as const,
-      },
-      {
-        id: "override",
-        endpoint: "POST /mcp/checkout · $115.00",
-        caller: 'External Agent: "Sony WH-1000XM5 Headphones"',
-        detail: `Exceeds $${mandate.maxPerTransaction.toFixed(
-          0
-        )} cap → Pauses for Human Approval`,
-        prompt: "Buy Sony WH-1000XM5 Studio Headphones",
-        tone: "amber" as const,
-      },
-    ],
-    [mandate.maxPerTransaction]
-  );
 
   const kpis = useMemo(() => {
     const settledTotal = transactions
@@ -233,7 +209,9 @@ export function ControlPlaneView({
     try {
       await onUpdateMandate({
         ...mandate,
-        ruleText: draftRule.trim() || `Max $${parsedMax} · Hardware, Audio, Books`,
+        ruleText:
+          draftRule.trim() ||
+          `Max $${parsedMax} · Hardware, Audio & Tech Books`,
         maxPerTransaction: parsedMax,
         dailyLimit: parsedDaily,
         blockGiftCards: draftBlockGift,
@@ -265,15 +243,15 @@ export function ControlPlaneView({
   const mcpJsonSnippet = JSON.stringify(
     {
       mcpServers: {
-        "paypal-ghostpass": {
+        "paypal-agentic-guardrail": {
           command: "npx",
-          args: ["-y", "@paypal-ghostpass/mcp-server"],
+          args: ["-y", "@paypal/agent-toolkit", "mcp"],
           env: {
-            GHOSTPASS_TOKEN: sessionApiKey,
-            GHOSTPASS_ENDPOINT: `${baseOrigin}/api/agent/execute`,
+            SCOPED_MANDATE_TOKEN: sessionApiKey,
+            GUARDRAIL_ENDPOINT: `${baseOrigin}/api/agent/execute`,
             MAX_PER_TX_USD: String(mandate.maxPerTransaction),
             DAILY_LIMIT_USD: String(mandate.dailyLimit),
-            IDENTITY_EXPOSURE: "0_PERCENT_PAYPAL_VAULT_RELAY",
+            PII_REDACTION: "STRICT_VAULT_RELAY",
           },
         },
       },
@@ -306,7 +284,7 @@ export function ControlPlaneView({
     )
   )}'`;
 
-  const simGhostPass = simulation.mode === "ghostpass";
+  const simRawPii = !isIdle && simulation.piiExposedPct > 0;
   const hasRealSandboxUrl =
     Boolean(simulation.liveSandbox) && Boolean(simulation.paypalOrderId);
   const sandboxUrl =
@@ -317,60 +295,159 @@ export function ControlPlaneView({
         )}`
       : null;
 
-  const step1State = isIdle
-    ? { tone: "idle", label: "Ready" }
-    : simGhostPass
-    ? { tone: "ok", label: "0% PII" }
-    : { tone: "fail", label: "100% PII" };
+  // Panel 1: INPUT JSON Context Window
+  const inputJsonPayload = useMemo(() => {
+    const ctx = simulation.agentContextPreview ?? {};
+    const isRedacted = isIdle || simulation.piiExposedPct === 0;
+    return {
+      tool: "tools/call: paypal_checkout",
+      mode: isIdle
+        ? isGhostPass
+          ? "PAYPAL_GUARDRAIL_ZERO_PII"
+          : "UNVERIFIED_AGENT_RAW_PII"
+        : simRawPii
+        ? "UNVERIFIED_AGENT_RAW_PII"
+        : "PAYPAL_GUARDRAIL_ZERO_PII",
+      arguments: {
+        merchant: "NovaTech Electronics",
+        requested_item: simulation.selectedProduct?.name ?? "[AWAITING_MCP_CALL]",
+        requested_amount_usd: simulation.selectedProduct
+          ? Number(simulation.proposedTotal.toFixed(2))
+          : 0,
+      },
+      agent_context: {
+        payer_name: isRedacted
+          ? "[REDACTED]"
+          : ctx.buyerName ?? "Alex Mercer",
+        payer_email: isRedacted
+          ? "[REDACTED]"
+          : ctx.buyerEmail ?? sandboxBuyerLabel,
+        shipping_address: isRedacted
+          ? "[PAYPAL_VAULT_RELAY]"
+          : ctx.shippingAddr ?? "742 Evergreen Terrace, Austin TX",
+        scoped_token: isRedacted
+          ? maskedToken
+          : ctx.authToken ?? "RAW_SESSION_COOKIE_UNSCOPED",
+      },
+    };
+  }, [
+    isIdle,
+    isGhostPass,
+    simRawPii,
+    simulation,
+    sandboxBuyerLabel,
+    maskedToken,
+  ]);
 
-  const step2State = isIdle
-    ? { tone: "idle", label: "Ready" }
-    : simulation.verdict === "BLOCKED"
-    ? { tone: "fail", label: "Blocked" }
-    : simulation.verdict === "NEEDS_APPROVAL"
-    ? { tone: "warn", label: "Over Cap" }
+  // Panel 2: ANALYSIS Guardrail Telemetry
+  const hmacAttestationValue = simulation.verificationHash
+    ? `sha256=${truncateMiddle(simulation.verificationHash, 10, 6)}`
+    : simulation.approvalToken
+    ? `hitl=${truncateMiddle(simulation.approvalToken, 10, 6)}`
+    : isIdle
+    ? "STANDBY"
+    : "NONE";
+
+  const intentMatchValue = isIdle
+    ? "STANDBY"
     : simulation.verdict === "403_REJECTED"
-    ? { tone: "idle", label: "Bypassed" }
-    : { tone: "ok", label: "Passed" };
+    ? "UNVERIFIED"
+    : simulation.verdict === "BLOCKED"
+    ? "FALSE (SKU_HIJACK)"
+    : "TRUE";
 
-  const step3State = isIdle
-    ? { tone: "idle", label: "Standby" }
-    : simulation.verdict === "APPROVED"
-    ? {
-        tone: "ok",
-        label:
-          simulation.paypalStatus === "COMPLETED" ? "Captured" : "Created",
-      }
+  const injectionScanValue = isIdle
+    ? "STANDBY"
+    : simulation.verdict === "BLOCKED"
+    ? "INJECTION_DETECTED"
+    : simulation.verdict === "403_REJECTED"
+    ? "BYPASSED"
+    : "CLEAN";
+
+  const spendCheckValue = isIdle
+    ? "STANDBY"
     : simulation.verdict === "NEEDS_APPROVAL"
-    ? { tone: "warn", label: "Awaiting Approval" }
-    : {
-        tone: "fail",
-        label: simulation.verdict === "403_REJECTED" ? "403 Blocked" : "Halted",
+    ? `OVER_CAP ($${simulation.proposedTotal.toFixed(2)} > $${mandate.maxPerTransaction.toFixed(2)})`
+    : simulation.verdict === "BLOCKED"
+    ? `POLICY_BLOCK ($${simulation.proposedTotal.toFixed(2)})`
+    : simulation.verdict === "403_REJECTED"
+    ? "UNAUDITED"
+    : `WITHIN_CAP ($${simulation.proposedTotal.toFixed(2)} <= $${mandate.maxPerTransaction.toFixed(2)})`;
+
+  // Panel 3: OUTPUT Orders v2 + Store Firewall
+  const firewallStatus = isIdle
+    ? { label: "LISTENING", tone: "idle" }
+    : simulation.verdict === "403_REJECTED"
+    ? { label: "403 SCRAPER_PII_BLOCKED", tone: "fail" }
+    : simulation.verdict === "BLOCKED"
+    ? { label: "ABORTED PRE_CHECKOUT", tone: "fail" }
+    : simulation.verdict === "NEEDS_APPROVAL"
+    ? { label: "HOLD · HITL_REQUIRED", tone: "warn" }
+    : { label: "200 VERIFIED_MANDATE", tone: "ok" };
+
+  const outputJsonPayload = useMemo(() => {
+    if (isIdle) {
+      return {
+        endpoint: "POST /v2/checkout/orders",
+        status: "STANDBY",
+        intent: "CAPTURE",
+        payee: "NovaTech Electronics",
+        "X-PayPal-Agent-Attestation": "READY",
       };
+    }
+    if (simulation.verdict === "403_REJECTED") {
+      return {
+        endpoint: "POST /api/store/checkout",
+        http_status: 403,
+        error: "BOT_SCRAPER_BLOCKED",
+        reason: "Unscoped bot with raw PII rejected by merchant firewall",
+        "X-PayPal-Agent-Attestation": "MISSING_OR_INVALID",
+      };
+    }
+    if (simulation.verdict === "BLOCKED") {
+      return {
+        endpoint: "POST /v2/checkout/orders",
+        http_status: 422,
+        status: "HALTED_BY_GUARDRAIL",
+        funds_moved_usd: 0,
+        "X-PayPal-Agent-Attestation": "DENIED_INJECTION",
+      };
+    }
+    if (simulation.verdict === "NEEDS_APPROVAL") {
+      return {
+        endpoint: "POST /v2/checkout/orders",
+        status: "PENDING_HITL_OVERRIDE",
+        intent: "CAPTURE",
+        purchase_units: [
+          {
+            amount: {
+              currency_code: "USD",
+              value: simulation.proposedTotal.toFixed(2),
+            },
+            payee: "NovaTech Electronics",
+          },
+        ],
+        "X-PayPal-Agent-Attestation": "AWAITING_HUMAN_SIGNATURE",
+      };
+    }
+    return {
+      order_id: simulation.paypalOrderId ?? "PENDING",
+      intent: "CAPTURE",
+      status: simulation.paypalStatus ?? "CREATED",
+      purchase_units: [
+        {
+          amount: {
+            currency_code: "USD",
+            value: simulation.proposedTotal.toFixed(2),
+          },
+          payee: "NovaTech Electronics",
+        },
+      ],
+      "X-PayPal-Agent-Attestation": "VERIFIED",
+    };
+  }, [isIdle, simulation]);
 
-  const securityCheckValue = isIdle
-    ? "—"
-    : simulation.verdict === "BLOCKED"
-    ? simulation.injectedProduct
-      ? `Blocked: Hidden $${simulation.injectedProduct.price.toFixed(0)} Gift Card Injection`
-      : `Blocked (Risk ${simulation.riskScore}/100)`
-    : simulation.verdict === "NEEDS_APPROVAL"
-    ? `Over Cap ($${simulation.proposedTotal.toFixed(2)} > $${mandate.maxPerTransaction.toFixed(2)})`
-    : simulation.verdict === "403_REJECTED"
-    ? `Bypassed (Risk ${simulation.riskScore}/100)`
-    : `Passed (Risk ${simulation.riskScore}/100)`;
-
-  const storeFirewallValue = isIdle
-    ? "—"
-    : simulation.verdict === "403_REJECTED"
-    ? "403 Blocked Unverified Bot"
-    : simulation.verdict === "BLOCKED"
-    ? "Aborted Pre-Checkout"
-    : simulation.verdict === "NEEDS_APPROVAL"
-    ? "Hold · Pending Override"
-    : "200 Verified Mandate";
-
-  function pillStyle(tone: string) {
+  function badgeClass(tone: string) {
     if (tone === "ok") {
       return "border-emerald-200 bg-emerald-50 text-emerald-800";
     }
@@ -380,565 +457,442 @@ export function ControlPlaneView({
     if (tone === "fail") {
       return "border-rose-200 bg-rose-50 text-rose-800";
     }
-    return "border-zinc-200 bg-zinc-50 text-zinc-600";
+    return "border-zinc-200 bg-zinc-100 text-zinc-700";
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6">
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[38%_minmax(0,1fr)]">
-        {/* LEFT COLUMN (38%): Programmable GhostPass Card + External Agent MCP Client */}
-        <div className="space-y-4">
-          {/* Top Left: Programmable Payment Pass Card */}
-          <section
-            aria-label="PayPal GhostPass Agent Payment Credential"
-            className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-[#0B1120] p-5 text-white shadow-lg"
-          >
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute -right-12 -top-12 h-44 w-44 rounded-full bg-[#0070E0]/25 blur-2xl"
-            />
-
-            {/* Card Header */}
-            <div className="relative flex items-start justify-between gap-2">
-              <div className="flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-white/5">
-                  <ShieldCheck
-                    className="h-4 w-4 text-[#38BDF8]"
-                    aria-hidden="true"
-                  />
-                </div>
-                <div>
-                  <h2 className="font-display text-sm font-bold leading-tight tracking-tight text-white">
-                    PayPal GhostPass
-                  </h2>
-                  <p className="font-mono text-[10px] text-zinc-400">
-                    Agent Payment Credential
-                  </p>
-                </div>
-              </div>
-
-              <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-emerald-300">
-                <span
-                  aria-hidden="true"
-                  className="h-1.5 w-1.5 rounded-full bg-emerald-400"
-                />
-                ACTIVE · 0% PII
-              </span>
-            </div>
-
-            {/* Scoped Pass Token + Action Buttons */}
-            <div className="relative mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-semibold tracking-wider text-zinc-100">
-                  {maskedToken}
-                </span>
-                <button
-                  type="button"
-                  aria-label="Copy GhostPass token"
-                  onClick={() => void copyText(sessionApiKey, "key")}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/15 bg-white/5 px-1.5 py-0.5 font-mono text-[10px] text-zinc-200 transition hover:bg-white/15"
-                >
-                  {copiedTarget === "key" ? (
-                    <>
-                      <Check
-                        className="h-3 w-3 text-emerald-400"
-                        aria-hidden="true"
-                      />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3 w-3" aria-hidden="true" />
-                      Copy
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setConfigTab("mcp");
-                    setMcpModalOpen(true);
-                  }}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-[#38BDF8]/30 bg-[#0070E0]/25 px-2 py-1 font-mono text-[10px] font-semibold text-[#7DD3FC] transition hover:bg-[#0070E0]/40"
-                >
-                  <Code2 className="h-3 w-3" aria-hidden="true" />
-                  Copy MCP Config
-                </button>
-                <button
-                  type="button"
-                  disabled={isRunning || isSavingRule}
-                  onClick={openRuleEditor}
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-white/15 bg-white/10 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-white/20 disabled:opacity-50"
-                >
-                  <Edit3 className="h-3 w-3" aria-hidden="true" />
-                  Edit Rules
-                </button>
-              </div>
-            </div>
-
-            {/* Structured Credential Guardrails Grid */}
-            <dl className="relative mt-4 grid grid-cols-2 gap-2.5 text-xs">
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                <dt className="text-[10px] font-medium text-zinc-400">
-                  Max Per Tx
-                </dt>
-                <dd className="mt-0.5 font-mono text-sm font-bold text-white">
-                  ${mandate.maxPerTransaction.toFixed(2)}
-                </dd>
-              </div>
-
-              <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                <dt className="text-[10px] font-medium text-zinc-400">
-                  Daily Remaining
-                </dt>
-                <dd className="mt-0.5 font-mono text-sm font-bold text-white">
-                  ${dailyRemaining.toFixed(2)}
-                  <span className="ml-1 text-[10px] font-normal text-zinc-400">
-                    / ${mandate.dailyLimit.toFixed(0)}
-                  </span>
-                </dd>
-              </div>
-
-              <div className="col-span-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <dt className="text-[10px] font-medium text-zinc-400">
-                    Allowed Categories
-                  </dt>
-                  <dd className="truncate font-mono text-[11px] font-semibold text-zinc-100">
-                    {categoriesLabel}
-                  </dd>
-                </div>
-                <div className="mt-1.5 flex items-center justify-between gap-2 border-t border-white/10 pt-1.5">
-                  <dt className="text-[10px] font-medium text-zinc-400">
-                    Identity Exposure
-                  </dt>
-                  <dd className="font-mono text-[11px] font-semibold text-emerald-300">
-                    0% (PayPal Vault Relay)
-                  </dd>
-                </div>
-              </div>
-            </dl>
-
-            {/* Card Footer: Daily Bar + Vaulted Buyer */}
-            <div className="relative mt-4 space-y-1.5">
-              <div
-                role="progressbar"
-                aria-label="Daily GhostPass spend"
-                aria-valuenow={dailyPct}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                className="h-1.5 w-full overflow-hidden rounded-full bg-white/10"
-              >
-                <div
-                  className="h-full rounded-full bg-[#0070E0] transition-all duration-500"
-                  style={{ width: `${dailyPct}%` }}
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-zinc-400">
-                <span className="truncate">Vault: {sandboxBuyerLabel}</span>
-                <span className="shrink-0 text-zinc-300">
-                  {mandate.blockGiftCards ? "No Gift Cards" : "Gift Cards On"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Bottom Left: External Agent MCP Client Simulator */}
-          <section
-            aria-label="External Agent MCP Client"
-            className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <Terminal
-                    className="h-4 w-4 text-[#0070E0]"
-                    aria-hidden="true"
-                  />
-                  <h2 className="font-display text-sm font-bold text-[#09090B]">
-                    External Agent MCP Client (Incoming API Calls)
-                  </h2>
-                </div>
-                <p className="mt-0.5 text-[11px] text-zinc-500">
-                  Simulates Claude / Gemini / OpenAI Operator calling your
-                  GhostPass endpoint.
-                </p>
-              </div>
-            </div>
-
-            {/* Client Authorization Mode Switch */}
-            <div
-              role="group"
-              aria-label="Incoming external agent mode"
-              className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-zinc-200 bg-zinc-100 p-0.5"
+    <div className="mx-auto w-full max-w-7xl space-y-4 px-4 py-4 sm:px-6">
+      {/* TOP CONTROL STRIP: Scoped Mandate Bar + Mode Switch + Direct MCP Triggers */}
+      <section
+        aria-label="Scoped Mandate and MCP Tool Triggers"
+        className="rounded-2xl border border-zinc-200 bg-white p-3.5 shadow-xs"
+      >
+        {/* Row 1: Active Scoped Mandate Pill + Edit Mandate & MCP Config */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 border-b border-zinc-100 pb-3">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-[#0B1120] px-3 py-1.5 font-mono text-[11px] text-zinc-200">
+            <span className="inline-flex items-center gap-1.5 font-semibold text-[#38BDF8]">
+              <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
+              Token: {maskedToken}
+            </span>
+            <button
+              type="button"
+              aria-label="Copy Scoped Mandate Token"
+              onClick={() => void copyText(sessionApiKey, "key")}
+              className="inline-flex cursor-pointer items-center gap-1 rounded border border-white/15 bg-white/5 px-1.5 py-0.5 text-[10px] text-zinc-200 transition hover:bg-white/15"
             >
-              <button
-                type="button"
-                disabled={isRunning}
-                aria-pressed={!isGhostPass}
-                onClick={() => onModeChange("standard_bot")}
-                className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                  !isGhostPass
-                    ? "bg-white text-[#09090B] shadow-xs"
-                    : "text-zinc-600 hover:text-[#09090B]"
-                }`}
-              >
-                <Bot className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Unverified Bot (Direct)</span>
-              </button>
+              {copiedTarget === "key" ? (
+                <Check className="h-3 w-3 text-emerald-400" aria-hidden="true" />
+              ) : (
+                <Copy className="h-3 w-3" aria-hidden="true" />
+              )}
+            </button>
+            <span aria-hidden="true" className="text-zinc-600">
+              ·
+            </span>
+            <span>Cap: ${mandate.maxPerTransaction.toFixed(0)}/tx</span>
+            <span aria-hidden="true" className="text-zinc-600">
+              ·
+            </span>
+            <span>
+              Daily: ${dailyRemaining.toFixed(0)}/${mandate.dailyLimit.toFixed(0)}{" "}
+              left
+            </span>
+            <span aria-hidden="true" className="text-zinc-600">
+              ·
+            </span>
+            <span className="font-semibold text-emerald-300">
+              PII: 0% Exposed
+            </span>
+            <span aria-hidden="true" className="hidden text-zinc-600 xl:inline">
+              ·
+            </span>
+            <span className="hidden text-zinc-400 xl:inline">
+              {sandboxBuyerLabel}
+            </span>
+          </div>
 
-              <button
-                type="button"
-                disabled={isRunning}
-                aria-pressed={isGhostPass}
-                onClick={() => onModeChange("ghostpass")}
-                className={`flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
-                  isGhostPass
-                    ? "bg-[#0070E0] text-white shadow-xs"
-                    : "text-zinc-600 hover:text-[#09090B]"
-                }`}
-              >
-                <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>GhostPass Authorized</span>
-              </button>
-            </div>
-
-            {/* 3 External Webhook / MCP Payload Trigger Cards */}
-            <div className="mt-3 space-y-2">
-              {externalPayloads.map((item) => {
-                const isCardRunning = isRunning && activePayloadId === item.id;
-                const badgeTone =
-                  item.tone === "emerald"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : item.tone === "rose"
-                    ? "border-rose-200 bg-rose-50 text-rose-800"
-                    : "border-amber-200 bg-amber-50 text-amber-800";
-                const borderHover =
-                  item.tone === "emerald"
-                    ? "hover:border-emerald-300"
-                    : item.tone === "rose"
-                    ? "hover:border-rose-300"
-                    : "hover:border-amber-300";
-
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    disabled={isRunning || isSettlingOverride}
-                    onClick={() => {
-                      setActivePayloadId(item.id);
-                      onPromptChange(item.prompt);
-                      onRunAgent(item.prompt);
-                    }}
-                    className={`group w-full cursor-pointer rounded-xl border border-zinc-200 bg-[#FAFAFA] p-3 text-left transition hover:bg-white hover:shadow-xs disabled:cursor-not-allowed disabled:opacity-50 ${borderHover}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-[10px] font-bold ${badgeTone}`}
-                      >
-                        {item.endpoint}
-                      </span>
-                      <span className="font-mono text-[10px] font-semibold text-zinc-500 group-hover:text-[#005BB5]">
-                        {isCardRunning ? "Calling..." : "Trigger ↗"}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-xs font-semibold text-[#09090B]">
-                      {item.caller}
-                    </p>
-                    <p className="mt-0.5 font-mono text-[10px] text-zinc-500">
-                      {item.detail}
-                    </p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isRunning || isSavingRule}
+              onClick={openRuleEditor}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#09090B] transition hover:bg-zinc-50 disabled:opacity-50"
+            >
+              <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Edit Mandate</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setConfigTab("mcp");
+                setMcpModalOpen(true);
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#0B1120] px-3 py-1.5 font-mono text-xs font-semibold text-white transition hover:bg-zinc-800"
+            >
+              <Code2 className="h-3.5 w-3.5 text-[#38BDF8]" aria-hidden="true" />
+              <span>MCP Config</span>
+            </button>
+          </div>
         </div>
 
-        {/* RIGHT COLUMN (62%): Live Authorization Receipt + Compact AG Grid Ledger */}
-        <div className="space-y-4">
-          {/* Top Card: Stripe-Style Live Authorization Inspector */}
-          <section
-            aria-label="Live Authorization Receipt"
-            className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-xs"
+        {/* Row 2: Agent Mode Toggle + 3 Direct MCP Tool Triggers */}
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5">
+          <div
+            role="group"
+            aria-label="Agent authorization mode"
+            className="inline-flex rounded-xl border border-zinc-200 bg-zinc-100 p-0.5"
           >
-            {/* Header + 3-Step Horizontal Status Bar */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 pb-4">
-              <div className="flex items-center gap-2">
-                <Webhook
-                  className="h-4 w-4 text-[#0070E0]"
-                  aria-hidden="true"
-                />
-                <span className="font-display text-sm font-bold text-[#09090B]">
-                  Live Authorization Receipt
-                </span>
-                <span className="rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 font-mono text-[10px] text-zinc-600">
-                  {isRunning ? "POST /mcp/checkout" : "MCP Broker"}
-                </span>
-                {isRunning && (
-                  <span className="rounded-full bg-sky-50 px-2 py-0.5 font-mono text-[10px] font-semibold text-[#0070E0]">
-                    Authorizing...
-                  </span>
-                )}
-              </div>
+            <button
+              type="button"
+              disabled={isRunning}
+              aria-pressed={!isGhostPass}
+              onClick={() => onModeChange("standard_bot")}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                !isGhostPass
+                  ? "bg-white text-rose-700 shadow-xs"
+                  : "text-zinc-600 hover:text-[#09090B]"
+              }`}
+            >
+              <Bot className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Unverified Agent (Raw PII)</span>
+            </button>
 
-              <div
-                aria-live="polite"
-                className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold"
-              >
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${pillStyle(
-                    step1State.tone
-                  )}`}
+            <button
+              type="button"
+              disabled={isRunning}
+              aria-pressed={isGhostPass}
+              onClick={() => onModeChange("ghostpass")}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+                isGhostPass
+                  ? "bg-[#0070E0] text-white shadow-xs"
+                  : "text-zinc-600 hover:text-[#09090B]"
+              }`}
+            >
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>PayPal Guardrail (Zero-PII)</span>
+            </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="hidden items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 font-mono text-[10px] font-semibold text-zinc-600 lg:inline-flex">
+              <Terminal className="h-3 w-3" aria-hidden="true" />
+              tools/call: paypal_checkout
+            </span>
+
+            {MCP_TRIGGERS.map((item) => {
+              const isItemRunning = isRunning && activeTriggerId === item.id;
+              const toneClass =
+                item.tone === "emerald"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                  : item.tone === "rose"
+                  ? "border-rose-200 bg-rose-50 text-rose-900 hover:bg-rose-100"
+                  : "border-amber-200 bg-amber-50 text-amber-900 hover:bg-amber-100";
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  disabled={isRunning || isSettlingOverride}
+                  onClick={() => {
+                    setActiveTriggerId(item.id);
+                    onPromptChange(item.prompt);
+                    onRunAgent(item.prompt);
+                  }}
+                  className={`cursor-pointer rounded-xl border px-3 py-1.5 font-mono text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
                 >
-                  {step1State.tone === "ok" ? (
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                  ) : step1State.tone === "fail" ? (
-                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  ) : (
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                  )}
-                  1. Blind Context · {step1State.label}
-                </span>
+                  {isItemRunning ? `Running...` : item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-                <span aria-hidden="true" className="text-zinc-300">
-                  ──
-                </span>
+      {/* CENTER STAGE: Live 3-Stage Payload & Diff Inspector (INPUT -> ANALYSIS -> OUTPUT) */}
+      <div
+        aria-label="Live 3-Stage Payload and Diff Inspector"
+        className="grid grid-cols-1 gap-4 lg:grid-cols-3"
+      >
+        {/* PANEL 1 · INPUT: Agent Context Window */}
+        <section
+          aria-label="Input Agent Context Window"
+          className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+              INPUT · Agent Context Window
+            </h2>
+            <span
+              className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${
+                isIdle
+                  ? "border-zinc-200 bg-zinc-100 text-zinc-600"
+                  : simRawPii
+                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-800"
+              }`}
+            >
+              {isIdle
+                ? isGhostPass
+                  ? "ZERO-PII READY"
+                  : "RAW PII MODE"
+                : simRawPii
+                ? "100% PII LEAKED"
+                : "0% PII EXPOSED"}
+            </span>
+          </div>
 
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${pillStyle(
-                    step2State.tone
-                  )}`}
-                >
-                  {step2State.tone === "ok" ? (
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                  ) : step2State.tone === "fail" ? (
-                    <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-                  ) : step2State.tone === "warn" ? (
-                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  ) : (
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                  )}
-                  2. Mandate Audit · {step2State.label}
-                </span>
+          <pre
+            className={`flex-1 overflow-x-auto rounded-xl border p-3 font-mono text-[11px] leading-relaxed ${
+              simRawPii
+                ? "border-rose-900/50 bg-[#1A0B10] text-rose-200"
+                : "border-zinc-800 bg-[#0B1120] text-sky-200"
+            }`}
+          >
+            {JSON.stringify(inputJsonPayload, null, 2)}
+          </pre>
+        </section>
 
-                <span aria-hidden="true" className="text-zinc-300">
-                  ──
-                </span>
+        {/* PANEL 2 · ANALYSIS: Guardrail & Policy Engine */}
+        <section
+          aria-label="Analysis Guardrail and Policy Engine"
+          className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+              ANALYSIS · Guardrail &amp; Policy
+            </h2>
+            <span
+              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
+                isIdle
+                  ? "idle"
+                  : simulation.verdict === "APPROVED"
+                  ? "ok"
+                  : simulation.verdict === "NEEDS_APPROVAL"
+                  ? "warn"
+                  : "fail"
+              )}`}
+            >
+              {isIdle ? (
+                <Lock className="h-3 w-3" aria-hidden="true" />
+              ) : simulation.verdict === "APPROVED" ? (
+                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+              ) : simulation.verdict === "NEEDS_APPROVAL" ? (
+                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+              )}
+              {isIdle
+                ? "STANDBY"
+                : simulation.verdict === "APPROVED"
+                ? "PASS"
+                : simulation.verdict === "NEEDS_APPROVAL"
+                ? "HITL PAUSE"
+                : simulation.verdict === "403_REJECTED"
+                ? "UNAUDITED"
+                : "BLOCKED"}
+            </span>
+          </div>
 
-                <span
-                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 ${pillStyle(
-                    step3State.tone
-                  )}`}
-                >
-                  {step3State.tone === "ok" ? (
-                    <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-                  ) : step3State.tone === "fail" ? (
-                    <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-                  ) : step3State.tone === "warn" ? (
-                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
-                  ) : (
-                    <Lock className="h-3 w-3" aria-hidden="true" />
-                  )}
-                  3. PayPal Settlement · {step3State.label}
-                </span>
-              </div>
+          <dl className="space-y-2 font-mono text-[11px]">
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+              <dt className="text-zinc-500">Intent Match</dt>
+              <dd className="font-semibold text-[#09090B]">{intentMatchValue}</dd>
             </div>
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+              <dt className="text-zinc-500">Prompt Injection Scan</dt>
+              <dd
+                className={`font-semibold ${
+                  simulation.verdict === "BLOCKED"
+                    ? "text-rose-700"
+                    : simulation.verdict === "APPROVED"
+                    ? "text-emerald-700"
+                    : "text-zinc-700"
+                }`}
+              >
+                {injectionScanValue}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+              <dt className="text-zinc-500">Spend Limit Check</dt>
+              <dd
+                className={`font-semibold ${
+                  simulation.verdict === "NEEDS_APPROVAL"
+                    ? "text-amber-700"
+                    : simulation.verdict === "BLOCKED"
+                    ? "text-rose-700"
+                    : "text-[#09090B]"
+                }`}
+              >
+                {spendCheckValue}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1.5">
+              <dt className="text-zinc-500">Risk Score</dt>
+              <dd
+                className={`font-bold ${
+                  simulation.riskScore >= 70
+                    ? "text-rose-700"
+                    : simulation.riskScore >= 40
+                    ? "text-amber-700"
+                    : "text-emerald-700"
+                }`}
+              >
+                {isIdle ? "0/100" : `${simulation.riskScore}/100`}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-zinc-500">HMAC Attestation</dt>
+              <dd className="truncate font-semibold text-[#005BB5]">
+                {hmacAttestationValue}
+              </dd>
+            </div>
+          </dl>
 
-            {/* Structured 2-Column Key-Value Receipt Grid */}
-            <dl className="mt-4 grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
-              <div className="flex items-baseline justify-between gap-2 border-b border-zinc-100 pb-2">
-                <dt className="text-xs font-medium text-zinc-500">Merchant</dt>
-                <dd className="font-mono text-xs font-semibold text-[#09090B]">
-                  NovaTech Store
-                </dd>
+          {/* Red Diff Highlight Box when Prompt Injection Caught */}
+          {simulation.verdict === "BLOCKED" && (
+            <div className="mt-3 rounded-xl border border-rose-300 bg-rose-50 p-3 font-mono text-[11px]">
+              <div className="flex items-center justify-between font-bold text-rose-800">
+                <span>THREAT DIFF · STRIPPED_PAYLOAD</span>
+                <span>RISK {simulation.riskScore}/100</span>
               </div>
-
-              <div className="flex items-baseline justify-between gap-2 border-b border-zinc-100 pb-2">
-                <dt className="text-xs font-medium text-zinc-500">
-                  Requested Item
-                </dt>
-                <dd className="truncate font-mono text-xs font-semibold text-[#09090B]">
-                  {simulation.selectedProduct
-                    ? `${simulation.selectedProduct.name} ($${simulation.proposedTotal.toFixed(
+              <div className="mt-1.5 rounded-lg border border-rose-200 bg-white px-2.5 py-2 text-[10px] leading-relaxed text-rose-900">
+                <div className="font-semibold text-rose-700">
+                  -{" "}
+                  {simulation.injectedProduct
+                    ? `Injected SKU: ${simulation.injectedProduct.name} ($${simulation.injectedProduct.price.toFixed(
                         2
                       )})`
-                    : "—"}
-                </dd>
-              </div>
-
-              <div className="flex items-baseline justify-between gap-2 border-b border-zinc-100 pb-2">
-                <dt className="text-xs font-medium text-zinc-500">
-                  Identity Exposed
-                </dt>
-                <dd
-                  className={`font-mono text-xs font-semibold ${
-                    isIdle
-                      ? "text-zinc-500"
-                      : simGhostPass
-                      ? "text-emerald-700"
-                      : "text-rose-700"
-                  }`}
-                >
-                  {isIdle
-                    ? "0% (PayPal Vault Relay)"
-                    : simGhostPass
-                    ? "0% (PayPal Vault Relay)"
-                    : "100% Exposed"}
-                </dd>
-              </div>
-
-              <div className="flex items-baseline justify-between gap-2 border-b border-zinc-100 pb-2">
-                <dt className="text-xs font-medium text-zinc-500">
-                  Security Check
-                </dt>
-                <dd
-                  className={`truncate font-mono text-xs font-semibold ${
-                    simulation.verdict === "BLOCKED"
-                      ? "text-rose-700"
-                      : simulation.verdict === "NEEDS_APPROVAL"
-                      ? "text-amber-700"
-                      : simulation.verdict === "APPROVED"
-                      ? "text-emerald-700"
-                      : "text-zinc-600"
-                  }`}
-                >
-                  {securityCheckValue}
-                </dd>
-              </div>
-
-              <div className="flex items-baseline justify-between gap-2 border-b border-zinc-100 pb-2 sm:border-b-0 sm:pb-0">
-                <dt className="text-xs font-medium text-zinc-500">
-                  Store Firewall
-                </dt>
-                <dd
-                  className={`font-mono text-xs font-semibold ${
-                    simulation.verdict === "403_REJECTED"
-                      ? "text-rose-700"
-                      : simulation.verdict === "APPROVED"
-                      ? "text-emerald-700"
-                      : simulation.verdict === "NEEDS_APPROVAL"
-                      ? "text-amber-700"
-                      : "text-zinc-600"
-                  }`}
-                >
-                  {storeFirewallValue}
-                </dd>
-              </div>
-
-              <div className="flex items-baseline justify-between gap-2">
-                <dt className="text-xs font-medium text-zinc-500">
-                  PayPal Order ID
-                </dt>
-                <dd className="font-mono text-xs font-semibold">
-                  {simulation.paypalOrderId ? (
-                    sandboxUrl ? (
-                      <a
-                        href={sandboxUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-[#005BB5] hover:underline"
-                      >
-                        <span>{simulation.paypalOrderId}</span>
-                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                      </a>
-                    ) : (
-                      <span className="text-zinc-800">
-                        {simulation.paypalOrderId}
-                      </span>
-                    )
-                  ) : (
-                    <span className="text-zinc-400">—</span>
-                  )}
-                </dd>
-              </div>
-            </dl>
-
-            {/* Inline Human Override Action Bar */}
-            {simulation.verdict === "NEEDS_APPROVAL" && (
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3">
-                <span className="font-mono text-xs font-semibold text-amber-950">
-                  Override Required · ${simulation.proposedTotal.toFixed(2)} &gt;
-                  ${mandate.maxPerTransaction.toFixed(2)}
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={isSettlingOverride}
-                    onClick={onApproveOverride}
-                    className="cursor-pointer rounded-xl bg-[#0070E0] px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:opacity-50"
-                  >
-                    {isSettlingOverride
-                      ? "Authorizing..."
-                      : `Authorize $${simulation.proposedTotal.toFixed(2)} via PayPal`}
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isSettlingOverride}
-                    onClick={onRejectOverride}
-                    className="cursor-pointer rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
-                  >
-                    Decline
-                  </button>
+                    : "Hidden Adversarial Merchant Instruction"}
                 </div>
-              </div>
-            )}
-          </section>
-
-          {/* Bottom Card: Compact AG Grid Transaction Ledger */}
-          <section
-            aria-label="Transaction Ledger"
-            className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
-          >
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(
-                  [
-                    { id: "all", label: `All (${transactions.length})` },
-                    { id: "paid", label: "Settled" },
-                    { id: "blocked", label: "Blocked" },
-                    { id: "needs_approval", label: "Pending" },
-                  ] as const
-                ).map((tab) => (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    aria-pressed={ledgerFilter === tab.id}
-                    onClick={() => setLedgerFilter(tab.id)}
-                    className={`cursor-pointer rounded-full px-3 py-1 text-[11px] font-semibold transition ${
-                      ledgerFilter === tab.id
-                        ? "bg-[#09090B] text-white"
-                        : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] font-semibold">
-                <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-zinc-800">
-                  Settled: ${kpis.settledTotal.toFixed(2)}
-                </span>
-                <span className="rounded-md bg-rose-50 px-2 py-0.5 text-rose-700">
-                  Blocked: ${kpis.blockedTotal.toFixed(2)}
-                </span>
-                <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700">
-                  PII Leaked: {kpis.piiLeaked}%
-                </span>
+                {simulation.selectedProduct?.hiddenHtmlMetadata && (
+                  <div className="mt-1 break-words text-rose-800">
+                    - {simulation.selectedProduct.hiddenHtmlMetadata}
+                  </div>
+                )}
               </div>
             </div>
+          )}
 
-            <AuditLedgerGrid transactions={filteredTransactions} />
-          </section>
-        </div>
+          {/* Inline Human-in-the-Loop (HITL) Control when Over Cap */}
+          {simulation.verdict === "NEEDS_APPROVAL" && (
+            <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+              <div className="font-mono text-[11px] font-bold text-amber-950">
+                HITL_OVERRIDE · ${simulation.proposedTotal.toFixed(2)} &gt; $
+                {mandate.maxPerTransaction.toFixed(2)}
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={isSettlingOverride}
+                  onClick={onApproveOverride}
+                  className="flex-1 cursor-pointer rounded-lg bg-[#0070E0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:opacity-50"
+                >
+                  {isSettlingOverride
+                    ? "Signing..."
+                    : `Approve $${simulation.proposedTotal.toFixed(2)}`}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSettlingOverride}
+                  onClick={onRejectOverride}
+                  className="cursor-pointer rounded-lg border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* PANEL 3 · OUTPUT: PayPal Orders v2 & Store Gate */}
+        <section
+          aria-label="Output PayPal Orders v2 and Store Gate"
+          className="flex flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+        >
+          <div className="mb-3 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+              OUTPUT · Orders v2 &amp; Store Gate
+            </h2>
+            <span
+              className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
+                firewallStatus.tone
+              )}`}
+            >
+              {firewallStatus.label}
+            </span>
+          </div>
+
+          <pre className="flex-1 overflow-x-auto rounded-xl border border-zinc-800 bg-[#0B1120] p-3 font-mono text-[11px] leading-relaxed text-emerald-200">
+            {JSON.stringify(outputJsonPayload, null, 2)}
+          </pre>
+
+          {sandboxUrl && (
+            <div className="mt-2.5 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 font-mono text-[11px]">
+              <span className="font-semibold text-[#003087]">
+                Order {simulation.paypalOrderId}
+              </span>
+              <a
+                href={sandboxUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-[#005BB5] hover:underline"
+              >
+                <span>Open in PayPal Sandbox</span>
+                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+              </a>
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Modal 1: Copy MCP Server JSON / REST cURL Config */}
+      {/* BOTTOM PANEL: Full-Width AG Grid Audit Ledger */}
+      <section
+        aria-label="Audit Ledger"
+        className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+      >
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(
+              [
+                { id: "all", label: `All (${transactions.length})` },
+                { id: "paid", label: "Settled" },
+                { id: "blocked", label: "Blocked" },
+                { id: "needs_approval", label: "HITL Pending" },
+              ] as const
+            ).map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                aria-pressed={ledgerFilter === tab.id}
+                onClick={() => setLedgerFilter(tab.id)}
+                className={`cursor-pointer rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                  ledgerFilter === tab.id
+                    ? "bg-[#09090B] text-white"
+                    : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] font-semibold">
+            <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-zinc-800">
+              Settled: ${kpis.settledTotal.toFixed(2)}
+            </span>
+            <span className="rounded-md bg-rose-50 px-2 py-0.5 text-rose-700">
+              Blocked: ${kpis.blockedTotal.toFixed(2)}
+            </span>
+            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700">
+              Guardrail PII Leaked: {kpis.piiLeaked}%
+            </span>
+          </div>
+        </div>
+
+        <AuditLedgerGrid transactions={filteredTransactions} />
+      </section>
+
+      {/* Modal 1: MCP Server Config & REST cURL */}
       {mcpModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-xs"
@@ -953,15 +907,9 @@ export function ControlPlaneView({
             className="w-full max-w-lg rounded-2xl border border-zinc-800 bg-[#0B1120] p-5 text-white shadow-2xl"
           >
             <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-3">
-              <div>
-                <h3 className="font-display text-sm font-bold text-white">
-                  Connect External AI Agents via MCP
-                </h3>
-                <p className="mt-0.5 text-xs text-zinc-400">
-                  Paste into Claude Desktop, Cursor, or OpenAI Operator MCP
-                  config.
-                </p>
-              </div>
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wide text-white">
+                MCP Config · @paypal/agent-toolkit
+              </h3>
               <button
                 type="button"
                 aria-label="Close MCP config modal"
@@ -1027,7 +975,7 @@ export function ControlPlaneView({
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                    {configTab === "mcp" ? "Copy MCP JSON" : "Copy cURL"}
+                    {configTab === "mcp" ? "Copy JSON" : "Copy cURL"}
                   </>
                 )}
               </button>
@@ -1040,7 +988,7 @@ export function ControlPlaneView({
         </div>
       )}
 
-      {/* Modal 2: Edit Pass Rules */}
+      {/* Modal 2: Edit Scoped Mandate */}
       {isEditingOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/60 p-4 backdrop-blur-xs"
@@ -1051,23 +999,17 @@ export function ControlPlaneView({
           <form
             role="dialog"
             aria-modal="true"
-            aria-label="Edit GhostPass Rules"
+            aria-label="Edit Scoped Mandate"
             onSubmit={handleSaveRule}
             className="w-full max-w-md space-y-4 rounded-2xl border border-zinc-200 bg-white p-5 shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-zinc-100 pb-3">
-              <div>
-                <h3 className="font-display text-sm font-bold text-[#09090B]">
-                  Edit GhostPass Rules
-                </h3>
-                <p className="text-[11px] text-zinc-500">
-                  Update programmatic spend limits enforced on incoming agent
-                  requests.
-                </p>
-              </div>
+              <h3 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+                Edit Scoped Mandate
+              </h3>
               <button
                 type="button"
-                aria-label="Close rules modal"
+                aria-label="Close mandate modal"
                 onClick={() => setEditingRule(false)}
                 className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-zinc-200 text-zinc-600 transition hover:bg-zinc-100"
               >
@@ -1086,7 +1028,7 @@ export function ControlPlaneView({
                 htmlFor="modal-rule-input"
                 className="mb-1 block text-xs font-semibold text-zinc-700"
               >
-                Mandate Rule Summary
+                Policy String
               </label>
               <input
                 id="modal-rule-input"
@@ -1170,7 +1112,7 @@ export function ControlPlaneView({
                 disabled={isSavingRule}
                 className="cursor-pointer rounded-xl bg-[#0070E0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:opacity-50"
               >
-                {isSavingRule ? "Saving..." : "Save Pass Rules"}
+                {isSavingRule ? "Saving..." : "Save Mandate"}
               </button>
             </div>
           </form>

@@ -47,14 +47,14 @@ function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0070E0]/30 bg-[#0070E0]/10 px-2 py-0.5 text-[11px] font-semibold text-[#003087]">
         <span className="h-1.5 w-1.5 rounded-full bg-[#0070E0]" />
-        GhostPass
+        PayPal Guardrail
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
       <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
-      Unverified
+      Unverified Agent
     </span>
   );
 }
@@ -69,13 +69,13 @@ function VerdictCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   };
   const labels: Record<string, string> = {
     APPROVED: "SETTLED",
-    BLOCKED: "BLOCKED",
-    "403_REJECTED": "403 BLOCK",
-    NEEDS_APPROVAL: "PENDING",
+    BLOCKED: "INJECTION BLOCKED",
+    "403_REJECTED": "403 SCRAPER BLOCK",
+    NEEDS_APPROVAL: "HITL REQUIRED",
   };
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold tracking-wide ${
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold tracking-tight ${
         styles[verdict ?? ""] ?? "border-zinc-200 bg-zinc-100 text-zinc-700"
       }`}
     >
@@ -130,10 +130,11 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
   const columnDefs = useMemo<ColDef<AuditTransaction>[]>(
     () => [
       {
-        headerName: "Time",
+        headerName: "Timestamp",
         field: "timestamp",
-        minWidth: 68,
-        flex: 0.72,
+        minWidth: 96,
+        flex: 0.75,
+        cellClass: "font-mono text-zinc-600",
         valueFormatter: (p) => {
           if (!p.value) return "";
           const d = new Date(String(p.value));
@@ -149,45 +150,47 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
         },
       },
       {
-        headerName: "Agent Mode",
+        headerName: "Mode",
         field: "mode",
-        minWidth: 96,
-        flex: 0.95,
+        minWidth: 130,
+        flex: 1,
         cellRenderer: ModeCellRenderer,
       },
       {
-        headerName: "Item",
+        headerName: "Merchant & Item",
         field: "requestedProductName",
-        minWidth: 112,
-        flex: 1.35,
+        minWidth: 210,
+        flex: 1.9,
         tooltipField: "reason",
+        valueFormatter: (p) =>
+          p.value ? `NovaTech · ${String(p.value)}` : "NovaTech Store",
       },
       {
         headerName: "Amount",
         field: "totalAmount",
-        minWidth: 72,
-        flex: 0.78,
-        cellClass: "font-mono font-semibold",
+        minWidth: 92,
+        flex: 0.75,
+        cellClass: "font-mono font-semibold text-[#09090B]",
         valueFormatter: (p) => `$${Number(p.value ?? 0).toFixed(2)}`,
       },
       {
-        headerName: "Status",
+        headerName: "Guardrail Verdict",
         field: "verdict",
-        minWidth: 90,
-        flex: 0.9,
+        minWidth: 145,
+        flex: 1.1,
         cellRenderer: VerdictCellRenderer,
       },
       {
         headerName: "PII Leaked",
         field: "piiExposedPct",
-        minWidth: 78,
-        flex: 0.78,
+        minWidth: 94,
+        flex: 0.75,
         cellRenderer: PiiCellRenderer,
       },
       {
         headerName: "PayPal Order ID",
         field: "paypalOrderId",
-        minWidth: 152,
+        minWidth: 195,
         flex: 1.45,
         cellRenderer: PayPalOrderCellRenderer,
       },

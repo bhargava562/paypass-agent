@@ -1,6 +1,6 @@
 # PayPal GhostPass — UI/UX & Demo Blueprint
 
-> **Design Philosophy:** Zero-clutter Fintech Infrastructure — A crisp **GhostPass Wallet** (Privacy.com + Stripe PaymentIntent aesthetic) paired with a 100% Unobstructed **NovaTech Store**, with zero fake browser chrome, zero tutorial walls, and zero floating extension popups.
+> **Design Philosophy:** Engineering-Grade Agentic Commerce Inspector — Surfacing exact **MCP Context (`INPUT`)**, **Guardrail & Risk Telemetry (`ANALYSIS`)**, and **PayPal Orders v2 Settlement (`OUTPUT`)** with zero marketing fluff, paired with an unobstructed **NovaTech Store**.
 
 ---
 
@@ -8,12 +8,13 @@
 
 ```mermaid
 flowchart TD
-    Shell["AppShellHeader (PayPal GhostPass · MCP Broker · Live Sandbox Pill · GhostPass Wallet <-> NovaTech Store)"]
-    Shell -->|"Tab 1 (Default)"| Wallet["View 1: GhostPass Wallet"]
-    Shell -->|"Tab 2"| Store["View 2: NovaTech Store"]
+    Shell["AppShellHeader (PayPal GhostPass · Agentic Guardrail Subtitle · GhostPass Wallet <-> NovaTech Store)"]
+    Shell -->|"Tab 1 (Default)"| Wallet["View 1: GhostPass Wallet (Guardrail & Orders v2 Inspector)"]
+    Shell -->|"Tab 2"| Store["View 2: NovaTech Store (Merchant Storefront)"]
 
-    Wallet --> Left["Left 38%: Agent Payment Credential Card + External Agent MCP Client (3 Incoming API Payloads)"]
-    Wallet --> Right["Right 62%: Stripe-Style Live Authorization Receipt + Zero-Clip AG Grid Ledger"]
+    Wallet --> Strip["Top Control Strip: Scoped Mandate Pill + Mode Toggle + 3 tools/call: paypal_checkout Triggers"]
+    Wallet --> Diff["Center 3-Stage Inspector: INPUT (Agent Context) -> ANALYSIS (Guardrail Diff / HITL) -> OUTPUT (Orders v2 & Store Gate)"]
+    Wallet --> Ledger["Bottom Full-Width AG Grid: Timestamp | Mode | Merchant & Item | Amount | Guardrail Verdict | PII Leaked | PayPal Order ID"]
 
     Store --> Retail["Pure E-Commerce Catalog (Real 4:3 Photos, Add to Cart, Buy Now, Slide-Over Merchant Orders Drawer)"]
 ```
@@ -23,27 +24,33 @@ flowchart TD
 ## 2. View Specifications
 
 ### App Shell Header (`src/components/AppShellHeader.tsx`)
-- **Left:** **PayPal GhostPass** wordmark, `MCP Broker` badge, and compact **`Sandbox Connected`** / **`Sandbox Ready`** indicator pill.
+- **Left:** **PayPal GhostPass** wordmark, **`PayPal Agentic Guardrail · MCP Authorization & Orders v2 Broker`** subtitle, and live **`Sandbox Connected`** / **`Sandbox Ready`** indicator pill.
 - **Center Switcher:** **`GhostPass Wallet`** ⟷ **`NovaTech Store`** (with live order count badge).
-- **Right:** Compact storage badge (`Neon SQL` / `Memory`) + **`Reset`** button.
+- **Right:** Storage indicator (`Neon SQL` / `Memory`) + **`Reset`** button.
 
-### View 1 — GhostPass Wallet (`src/components/ControlPlaneView.tsx`)
-- **Left Column (`38%`) — Agent Payment Credential & Incoming External MCP Client:**
-  - **Programmable Payment Pass (`PayPal GhostPass · Agent Payment Credential`):** Displays `ACTIVE · 0% PII` pill, masked copyable token (`gp_live_••••_8921`), `Max Per Tx: $60.00`, `Daily Remaining: $150.00`, `Allowed Categories: Hardware, Audio, Books`, `Identity Exposure: 0% (PayPal Vault Relay)`, **`Copy MCP Config`** modal (`mcpServers.paypal-ghostpass` JSON + REST cURL tab), and **`Edit Rules`** modal.
-  - **External Agent MCP Client (Incoming API Calls):** Mode toggle (`Unverified Bot (Direct)` vs. `GhostPass Authorized`) and 3 one-click incoming webhook payload cards (`POST /mcp/checkout · $48.00`, `POST /mcp/checkout · $19.00 → $75.00 Trap`, `POST /mcp/checkout · $115.00`) simulating external agents (Claude / Gemini / OpenAI Operator) with zero consumer shopping chat input.
-- **Right Column (`62%`) — Live Authorization Receipt & Transaction Ledger:**
-  - **Live Authorization Receipt:** `POST /mcp/checkout` indicator, 3-node horizontal progression (`1. Blind Context` ── `2. Mandate Audit` ── `3. PayPal Settlement`), 2-column monospace receipt table (`Merchant`, `Requested Item`, `Identity Exposed`, `Security Check`, `Store Firewall`, clickable `PayPal Order ID`), and inline **`Authorize $115.00 via PayPal`** / **`Decline`** bar.
-  - **Zero-Clip Transaction Ledger (`src/components/AuditLedgerGrid.tsx`):** Inline filter pills (`All`, `Settled`, `Blocked`, `Pending`), compact KPI badges (`Settled`, `Blocked`, `PII Leaked: 0%`), and `ag-grid-react` table (`Time`, `Agent Mode`, `Item`, `Amount`, `Status`, `PII Leaked`, `PayPal Order ID`) sized proportionally so all columns render without horizontal clipping.
+### View 1 — PayPal Agentic Guardrail & MCP Inspector (`src/components/ControlPlaneView.tsx`)
+- **Top Control Strip:**
+  - Active Scoped Mandate Pill (`Token: gp_live_••••_8921 · Cap: $60/tx · Daily: $150/$150 left · PII: 0% Exposed`) + **`Edit Mandate`** & **`MCP Config`** modals.
+  - Mode Switch (`Unverified Agent (Raw PII)` vs. `PayPal Guardrail (Zero-PII)`) + 3 Direct MCP Tool Triggers (`tools/call: paypal_checkout`):
+    1. `1. Valid Order ($48 · Keychron Q1)`
+    2. `2. Prompt Injection ($19 Cable → $75 Gift Card)`
+    3. `3. Over-Cap Order ($115 · Sony XM5 — HITL)`
+- **Center 3-Stage Payload & Diff Inspector:**
+  1. **`INPUT · Agent Context Window`:** Syntax-styled JSON showing `[REDACTED]` / `[PAYPAL_VAULT_RELAY]` under PayPal Guardrail vs. raw leaked PII under Unverified Agent.
+  2. **`ANALYSIS · Guardrail & Policy`:** Structured telemetry rows (`Intent Match`, `Prompt Injection Scan`, `Spend Limit Check`, `Risk Score: X/100`, `HMAC Attestation`), red **`THREAT DIFF`** box showing the exact stripped injection payload when caught, and inline **`Approve` / `Reject`** HITL override buttons when over-cap.
+  3. **`OUTPUT · Orders v2 & Store Gate`:** NovaTech firewall status (`200 VERIFIED_MANDATE` vs. `403 SCRAPER_PII_BLOCKED`), structured `POST /v2/checkout/orders` JSON payload (`order_id`, `intent: "CAPTURE"`, `status`, `X-PayPal-Agent-Attestation`), and **`Open in PayPal Sandbox ↗`** link.
+- **Bottom Full-Width Audit Ledger (`src/components/AuditLedgerGrid.tsx`):**
+  - Filter tabs (`All`, `Settled`, `Blocked`, `HITL Pending`) + KPI badges (`Settled`, `Blocked`, `Guardrail PII Leaked: 0%`) + zero-clip `ag-grid-react` table (`Timestamp`, `Mode`, `Merchant & Item`, `Amount`, `Guardrail Verdict`, `PII Leaked`, `PayPal Order ID`).
 
 ### View 2 — NovaTech Store (`src/components/StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`)
 - 100% pure, unobstructed consumer electronics & technical book store (`#FAFAFA` canvas, `#FFFFFF` cards, `Plus Jakarta Sans` + `Inter` + `JetBrains Mono`, real `4:3` Unsplash photography).
-- Includes **`Orders (N)`** button opening a right-side slide-over **Merchant Orders Drawer** displaying settled orders with `Buyer PII Shared: None — Fulfilled via PayPal Vault Relay` / `Direct Customer Checkout` and clickable PayPal Sandbox Order IDs.
+- Includes **`Orders (N)`** button opening a right-side slide-over **Merchant Orders Drawer** displaying settled orders with `Buyer PII Shared: None — Fulfilled via PayPal Vault Relay` and clickable PayPal Sandbox Order IDs.
 
 ---
 
-## 3. 90-Second Hackathon Pitch Script
+## 3. 90-Second Engineering Demo Script
 
-1. **0:00–0:20 (The Bot Problem):** In **GhostPass Wallet**, select `Unverified Bot (Direct)` and trigger **`POST /mcp/checkout · $48.00`**. The Live Authorization Receipt shows `100% Exposed` and `403 Blocked Unverified Bot` on Store Firewall while settled amount stays `$0.00`.
-2. **0:20–0:45 (MCP Credential + Live PayPal Settlement):** Open **`Copy MCP Config`** on the GhostPass Card to show `mcpServers.paypal-ghostpass`, switch to `GhostPass Authorized`, and trigger **`POST /mcp/checkout · $48.00`**. `Identity Exposed` stays `0% (PayPal Vault Relay)`, Store Firewall returns `200 Verified Mandate`, and PayPal Sandbox mints a live Order ID.
-3. **0:45–1:10 (Prompt Injection Caught):** Trigger **`POST /mcp/checkout · $19.00 → $75.00 Trap`**. `2. Mandate Audit` catches the hidden `$75` Steam Gift Card injection immediately (`Blocked · $0.00 Moved`).
-4. **1:10–1:30 (Human Override + Merchant Orders Drawer):** Trigger **`POST /mcp/checkout · $115.00`**. Click **`Authorize $115.00 via PayPal`** in the receipt action bar, then switch to **`NovaTech Store`** → **`Orders`** to inspect the settled order arriving with zero customer PII.
+1. **0:00–0:20 (Raw PII & 403 Firewall Contrast):** Select `Unverified Agent (Raw PII)` and click **`1. Valid Order ($48 · Keychron Q1)`**. `INPUT` turns rose (`100% PII LEAKED`) with raw buyer PII; `OUTPUT` returns `403 SCRAPER_PII_BLOCKED` (`$0.00`).
+2. **0:20–0:45 (Zero-PII Guardrail + Live Orders v2 Settlement):** Open **`MCP Config`** to show `@paypal/agent-toolkit`, switch to `PayPal Guardrail (Zero-PII)`, and click **`1. Valid Order ($48 · Keychron Q1)`**. `INPUT` shows `[REDACTED]` (`0% PII EXPOSED`), `ANALYSIS` returns `PASS` with `HMAC Attestation`, and `OUTPUT` renders the live PayPal Sandbox `order_id` (`Open in PayPal Sandbox ↗`).
+3. **0:45–1:10 (Prompt Injection Diff):** Click **`2. Prompt Injection ($19 Cable → $75 Gift Card)`**. `ANALYSIS` halts execution (`INJECTION_DETECTED`, `Risk 98/100`) and surfaces the exact stripped adversarial string inside the red `THREAT DIFF` box.
+4. **1:10–1:30 (HITL Override + Storefront Fulfillment):** Click **`3. Over-Cap Order ($115 · Sony XM5 — HITL)`**. Click **`Approve $115.00`** in Panel 2 to settle via PayPal Orders v2, then open **`NovaTech Store`** → **`Orders`** to inspect the fulfilled merchant order.

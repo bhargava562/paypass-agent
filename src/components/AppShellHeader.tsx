@@ -33,32 +33,36 @@ export function AppShellHeader({
   return (
     <header className="sticky top-0 z-30 border-b border-zinc-200 bg-white/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2.5 sm:px-6">
-        {/* Left: Crisp Fintech Brand + Live Sandbox Status */}
+        {/* Left: Brand + Engineering Subtitle + Live Sandbox Status */}
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0B1120] text-white shadow-xs">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0B1120] text-white shadow-xs">
             <ShieldCheck className="h-4 w-4 text-[#38BDF8]" aria-hidden="true" />
           </div>
-          <span className="font-display text-sm font-bold tracking-tight text-[#09090B] sm:text-base">
-            PayPal GhostPass
-          </span>
-          <span className="hidden rounded-md border border-zinc-200 bg-zinc-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-zinc-600 lg:inline-block">
-            MCP Broker
-          </span>
-          <span
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-              paypalConfigured
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-sky-200 bg-sky-50 text-sky-700"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-1.5 w-1.5 rounded-full ${
-                paypalConfigured ? "bg-emerald-500" : "bg-sky-500"
-              }`}
-            />
-            {paypalConfigured ? "Sandbox Connected" : "Sandbox Ready"}
-          </span>
+          <div className="leading-tight">
+            <div className="flex items-center gap-2">
+              <span className="font-display text-sm font-bold tracking-tight text-[#09090B]">
+                PayPal GhostPass
+              </span>
+              <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
+                  paypalConfigured
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-sky-200 bg-sky-50 text-sky-700"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    paypalConfigured ? "bg-emerald-500" : "bg-sky-500"
+                  }`}
+                />
+                {paypalConfigured ? "Sandbox Connected" : "Sandbox Ready"}
+              </span>
+            </div>
+            <p className="hidden font-mono text-[10px] text-zinc-500 md:block">
+              PayPal Agentic Guardrail · MCP Authorization &amp; Orders v2 Broker
+            </p>
+          </div>
         </div>
 
         {/* Center: Clean 2-View Switcher */}
