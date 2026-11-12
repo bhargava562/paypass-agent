@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AuditTransaction } from "@/data/catalog";
 import { resolveCatalogProductById } from "@/lib/agents/shoppingAgent";
 import {
+  consumeMandateToken,
   verifyGhostPassMandate,
   verifyHumanOverrideToken,
 } from "@/lib/crypto/mandateSigner";
@@ -12,6 +13,7 @@ import {
   saveMandate,
   updateTransaction,
 } from "@/lib/db";
+import { createAndSettleSandboxOrder } from "@/lib/paypal/client";
 import {
   AgentExecutionMode,
   CheckoutRequest,
@@ -27,20 +29,50 @@ function normalizeMode(
   return "GHOSTPASS";
 }
 
+const ALLOWED_REDACTED_SENTINELS = new Set([
+  "[VAULTED_IN_PAYPAL]",
+  "[VAULTED_EMAIL]",
+  "[PAYPAL_DIRECT_RELAY]",
+]);
+
 function containsRawPii(payload?: Record<string, string>): boolean {
-  if (!payload) return false;
-  const serialized = JSON.stringify(payload);
-  // Reject if unredacted email or raw street tokens appear in an automated GhostPass header check
-  if (/@/.test(serialized) && !serialized.includes("[VAULTED_EMAIL]")) {
-    return true;
+  if (!payload || typeof payload !== "object") return false;
+  for (const [key, rawVal] of Object.entries(payload)) {
+    if (typeof rawVal !== "string") continue;
+    const val = rawVal.trim();
+    if (!val) continue;
+    if (ALLOWED_REDACTED_SENTINELS.has(val)) continue;
+    if (key === "authToken" && /^gp_[a-zA-Z0-9_]+$/.test(val)) continue;
+
+    if (
+      val.includes("@") ||
+      val.startsWith("raw_") ||
+      /\d{1,5}\s+[A-Za-z]+\s+(St|Street|Ave|Avenue|Rd|Road|Blvd|Terrace|Lane|Dr)\b/i.test(
+        val
+      )
+    ) {
+      return true;
+    }
+    if (key === "buyerName" || key === "buyerEmail" || key === "shippingAddr") {
+      return true;
+    }
   }
   return false;
 }
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as Partial<CheckoutRequest>;
-    const product = body.productId
+    let body: Partial<CheckoutRequest>;
+    try {
+      body = (await request.json()) as Partial<CheckoutRequest>;
+    } catch {
+      return NextResponse.json(
+        { error: "INVALID_JSON", message: "Malformed JSON payload" },
+        { status: 400 }
+      );
+    }
+
+    const product = body?.productId
       ? resolveCatalogProductById(body.productId)
       : undefined;
 
@@ -59,7 +91,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Standard human storefront checkout bypasses bot-firewall (manual shopper)
+    // Standard human storefront checkout (manual shopper on NovaTech)
     if (body.isManualHumanCheckout === true) {
       const receiptToken = `NT-HUMAN-${randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
       const resPayload: CheckoutResponse = {
@@ -68,6 +100,7 @@ export async function POST(request: Request) {
         verifiedMandate: false,
         captchaBypassed: false,
         receiptToken,
+        paypalOrderId: receiptToken,
         piiExposedPct: 0,
         message: "Manual human checkout completed on NovaTech Store.",
       };
@@ -127,6 +160,16 @@ export async function POST(request: Request) {
     }
 
     // Branch B: GHOSTPASS -> Verify Cryptographic Signature or Human Override Token
+    if (Math.abs(amount - product.price) > 0.005) {
+      return NextResponse.json(
+        {
+          error: "PRICE_MISMATCH",
+          message: "Checkout amount does not match NovaTech catalog price",
+        },
+        { status: 400 }
+      );
+    }
+
     const signatureCheck = headerSignature
       ? verifyGhostPassMandate(headerSignature, amount, product.id)
       : { valid: false, reason: "Missing X-PayPal-GhostPass-Signature" };
@@ -137,37 +180,107 @@ export async function POST(request: Request) {
         : { valid: false, reason: signatureCheck.reason };
 
     const isVerified = signatureCheck.valid || overrideCheck.valid;
+    const tokenClaims = signatureCheck.valid
+      ? signatureCheck.payload
+      : overrideCheck.payload;
+    const usedToken = (signatureCheck.valid ? headerSignature : overrideToken) || "";
 
-    if (!isVerified || containsRawPii(body.agentContextPayload)) {
-      const failureReason = containsRawPii(body.agentContextPayload)
+    const sessionMismatch =
+      isVerified &&
+      body.sessionId &&
+      tokenClaims?.sessionId &&
+      body.sessionId !== tokenClaims.sessionId;
+
+    const piiDetected = containsRawPii(body.agentContextPayload);
+
+    const currentMandate = await getMandate();
+    const dailyCapExceeded =
+      isVerified && currentMandate.dailySpent + amount > currentMandate.dailyLimit;
+
+    const tokenReplay =
+      isVerified &&
+      !sessionMismatch &&
+      !piiDetected &&
+      !dailyCapExceeded &&
+      !consumeMandateToken(usedToken, tokenClaims?.expiresAt);
+
+    if (
+      !isVerified ||
+      sessionMismatch ||
+      piiDetected ||
+      dailyCapExceeded ||
+      tokenReplay
+    ) {
+      const failureReason = piiDetected
         ? "Raw PII detected in GhostPass automated checkout payload"
-        : signatureCheck.reason || overrideCheck.reason || "Invalid mandate";
+        : sessionMismatch
+        ? "Session ID does not match signed mandate token"
+        : dailyCapExceeded
+        ? "Daily spending mandate limit exceeded"
+        : tokenReplay
+        ? "Single-use mandate token has already been redeemed"
+        : overrideToken
+        ? overrideCheck.reason || "Invalid human override token"
+        : signatureCheck.reason || "Invalid mandate";
 
-      const tx: AuditTransaction = {
-        id: `tx-${randomUUID()}`,
-        timestamp: new Date().toISOString(),
-        mode: "ghostpass",
-        prompt: body.prompt || `Buy ${product.name}`,
-        requestedProductId: product.id,
-        requestedProductName: product.name,
-        cartItems: [
-          {
-            id: product.id,
-            name: product.name,
-            price: amount,
-            category: product.category,
-          },
-        ],
-        totalAmount: amount,
-        verdict: "403_REJECTED",
-        riskScore: 90,
-        piiExposedPct: 0,
-        merchantStatusCode: 403,
-        paypalOrderId: null,
-        reason: `403 Forbidden: ${failureReason}`,
-      };
-
-      await appendTransaction(tx);
+      let auditEvent: AuditTransaction;
+      if (body.auditEventId) {
+        const updatedList = await updateTransaction(body.auditEventId, {
+          verdict: "403_REJECTED",
+          riskScore: 90,
+          merchantStatusCode: 403,
+          paypalOrderId: null,
+          reason: `403 Forbidden: ${failureReason}`,
+        });
+        auditEvent = updatedList.find((t) => t.id === body.auditEventId) ?? {
+          id: body.auditEventId,
+          timestamp: new Date().toISOString(),
+          mode: "ghostpass",
+          prompt: body.prompt || `Buy ${product.name}`,
+          requestedProductId: product.id,
+          requestedProductName: product.name,
+          cartItems: [
+            {
+              id: product.id,
+              name: product.name,
+              price: amount,
+              category: product.category,
+            },
+          ],
+          totalAmount: amount,
+          verdict: "403_REJECTED",
+          riskScore: 90,
+          piiExposedPct: 0,
+          merchantStatusCode: 403,
+          paypalOrderId: null,
+          reason: `403 Forbidden: ${failureReason}`,
+        };
+      } else {
+        auditEvent = {
+          id: `tx-${randomUUID()}`,
+          timestamp: new Date().toISOString(),
+          mode: "ghostpass",
+          prompt: body.prompt || `Buy ${product.name}`,
+          requestedProductId: product.id,
+          requestedProductName: product.name,
+          cartItems: [
+            {
+              id: product.id,
+              name: product.name,
+              price: amount,
+              category: product.category,
+            },
+          ],
+          totalAmount: amount,
+          verdict: "403_REJECTED",
+          riskScore: 90,
+          piiExposedPct: 0,
+          merchantStatusCode: 403,
+          paypalOrderId: null,
+          reason: `403 Forbidden: ${failureReason}`,
+        };
+        await appendTransaction(auditEvent);
+      }
 
       const resPayload: CheckoutResponse = {
         status: "BOT_SCRAPER_BLOCKED",
@@ -176,24 +289,36 @@ export async function POST(request: Request) {
         captchaBypassed: false,
         piiExposedPct: 0,
         error: "BOT_SCRAPER_BLOCKED",
-        code: "INVALID_GHOSTPASS_SIGNATURE",
+        code: dailyCapExceeded
+          ? "DAILY_CAP_EXCEEDED"
+          : tokenReplay
+          ? "TOKEN_REPLAY_REJECTED"
+          : "INVALID_GHOSTPASS_SIGNATURE",
         message: `Store Security Guard rejected checkout: ${failureReason}`,
-        auditEvent: tx,
+        auditEvent,
       };
 
       return NextResponse.json(resPayload, { status: 403 });
     }
 
-    // Cryptographically Verified -> Update dailySpent & record APPROVED_BY_MERCHANT
-    const usedToken = headerSignature || overrideToken || "";
+    // Cryptographically Verified -> Settle via PayPal Sandbox Orders v2
+    const sessionId =
+      tokenClaims?.sessionId || `sess_${randomUUID().slice(0, 8)}`;
+
     const verificationHash = createHash("sha256")
       .update(`${product.id}:${amount}:${usedToken}`)
       .digest("hex")
       .slice(0, 16)
       .toUpperCase();
-    const receiptToken = `READY-CAP-${verificationHash.slice(0, 8)}`;
 
-    const currentMandate = await getMandate();
+    const settled = await createAndSettleSandboxOrder({
+      amount,
+      productId: product.id,
+      productName: product.name,
+      sessionId,
+      verificationHash,
+    });
+
     await saveMandate({
       ...currentMandate,
       dailySpent: Number((currentMandate.dailySpent + amount).toFixed(2)),
@@ -201,19 +326,20 @@ export async function POST(request: Request) {
 
     const isHumanOverride = Boolean(overrideCheck.valid);
     const approvedReason = isHumanOverride
-      ? `Human 1-Click Override Approved ($${amount.toFixed(
+      ? `Human Override Approved ($${amount.toFixed(
           2
-        )}). Verified by Merchant with 0% PII.`
+        )}). PayPal Orders v2 (${settled.paypalOrderId}) with 0% PII.`
       : `Verified PayPal Human Mandate ($${amount.toFixed(
           2
-        )}). Captcha bypassed with 0% PII.`;
+        )}). PayPal Orders v2 (${settled.paypalOrderId}) with 0% PII.`;
 
     let auditEvent: AuditTransaction;
     if (body.auditEventId) {
       const updatedList = await updateTransaction(body.auditEventId, {
         verdict: "APPROVED",
+        riskScore: isHumanOverride ? 15 : 8,
         merchantStatusCode: 200,
-        paypalOrderId: receiptToken,
+        paypalOrderId: settled.paypalOrderId,
         reason: approvedReason,
       });
       auditEvent = updatedList.find((t) => t.id === body.auditEventId) ?? {
@@ -236,7 +362,7 @@ export async function POST(request: Request) {
         riskScore: isHumanOverride ? 15 : 8,
         piiExposedPct: 0,
         merchantStatusCode: 200,
-        paypalOrderId: receiptToken,
+        paypalOrderId: settled.paypalOrderId,
         reason: approvedReason,
       };
     } else {
@@ -260,7 +386,7 @@ export async function POST(request: Request) {
         riskScore: isHumanOverride ? 15 : 8,
         piiExposedPct: 0,
         merchantStatusCode: 200,
-        paypalOrderId: receiptToken,
+        paypalOrderId: settled.paypalOrderId,
         reason: approvedReason,
       };
       await appendTransaction(auditEvent);
@@ -272,20 +398,28 @@ export async function POST(request: Request) {
       verifiedMandate: true,
       captchaBypassed: true,
       verificationHash,
-      readyForPayPalCapture: true,
-      receiptToken,
+      readyForPayPalCapture: false,
+      receiptToken: settled.paypalOrderId,
+      paypalOrderId: settled.paypalOrderId,
+      paypalStatus: settled.paypalStatus,
+      sandboxActivityUrl: settled.sandboxActivityUrl,
+      approveUrl: settled.approveUrl,
+      liveSandbox: settled.liveSandbox,
       piiExposedPct: 0,
-      message:
-        "Verified PayPal Human Mandate accepted by NovaTech Store (ready for PayPal capture).",
+      message: settled.liveSandbox
+        ? `Verified Human Mandate accepted — PayPal Sandbox Order ${settled.paypalOrderId} (${settled.paypalStatus}).`
+        : `Verified Human Mandate accepted — Sandbox Order ${settled.paypalOrderId}.`,
       auditEvent,
     };
 
     return NextResponse.json(resPayload);
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Merchant checkout failed";
+    console.error("[/api/store/checkout] Error:", err);
     return NextResponse.json(
-      { error: "CHECKOUT_ERROR", message },
+      {
+        error: "CHECKOUT_ERROR",
+        message: "Merchant checkout processing failed",
+      },
       { status: 500 }
     );
   }

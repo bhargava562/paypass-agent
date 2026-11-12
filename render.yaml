@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: paypal-ghostpass
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm install --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: PAYPAL_SANDBOX_BUYER_EMAIL
+        sync: false
+      - key: PAYPAL_SANDBOX_SELLER_EMAIL
+        sync: false
+      - key: GHOSTPASS_HMAC_SECRET
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false

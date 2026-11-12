@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   AgentMode,
   AuditTransaction,
@@ -22,15 +22,14 @@ import {
   AgentExecuteResponse,
   CheckoutResponse,
 } from "@/types/ghostpass";
-import { BrowserChromeBar } from "@/components/BrowserChromeBar";
+import { AppShellHeader, AppViewMode } from "@/components/AppShellHeader";
+import { ControlPlaneView } from "@/components/ControlPlaneView";
 import { StoreNavbar } from "@/components/StoreNavbar";
 import { ProductGrid } from "@/components/ProductGrid";
 import {
   CheckoutDriver,
   StoreCheckoutModal,
 } from "@/components/StoreCheckoutModal";
-import { AgentExtensionWidget } from "@/components/AgentExtensionWidget";
-import { PullDownTV } from "@/components/PullDownTV";
 
 const INITIAL_SIMULATION: SimulationRunState = {
   stage: "idle",
@@ -45,6 +44,10 @@ const INITIAL_SIMULATION: SimulationRunState = {
   injectedProduct: null,
   proposedTotal: 0,
   paypalOrderId: null,
+  paypalStatus: null,
+  sandboxActivityUrl: null,
+  approveUrl: null,
+  liveSandbox: false,
   verificationHash: null,
   approvalToken: null,
   shippingRelayLabel: "PayPal Vault Standby",
@@ -61,21 +64,42 @@ const INITIAL_SIMULATION: SimulationRunState = {
   pendingOverrideTransactionId: null,
 };
 
-async function syncServerState(payload: Record<string, unknown>) {
+async function syncServerState(payload: Record<string, unknown>): Promise<boolean> {
   try {
-    await fetch("/api/state", {
+    const res = await fetch("/api/state", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    return res.ok;
   } catch {
-    // Non-fatal fallback: clientStorage remains authoritative in local zero-config demos
+    return false;
   }
 }
 
-export default function NovaTechStoreWithGhostPassPage() {
+export default function PayPalGhostPassApp() {
+  const [activeView, setActiveView] = useState<AppViewMode>("console");
   const [mandate, setMandate] = useState<SpendingMandate>(DEFAULT_MANDATE);
   const [transactions, setTransactions] = useState<AuditTransaction[]>([]);
+  const [manualOrders, setManualOrders] = useState<AuditTransaction[]>([]);
+  const [paypalConfigured, setPaypalConfigured] = useState(false);
+  const [sandboxBuyerLabel, setSandboxBuyerLabel] = useState(
+    "sandbox-buyer@personal.example.com"
+  );
+  const [storageBackend, setStorageBackend] = useState("memory-localstorage");
+  const [sessionApiKey] = useState("gp_live_0pii_sandbox_v2");
+
+  // Control Plane Agent Runner State
+  const [mode, setMode] = useState<AgentMode>("ghostpass");
+  const [prompt, setPrompt] = useState(
+    "Buy Keychron Q1 Pro Wireless Mechanical Keyboard under $60"
+  );
+  const [isRunning, setIsRunning] = useState(false);
+  const [isSettlingOverride, setIsSettlingOverride] = useState(false);
+  const [simulation, setSimulation] =
+    useState<SimulationRunState>(INITIAL_SIMULATION);
+
+  // NovaTech Storefront View State
   const [selectedCategory, setSelectedCategory] = useState<
     "All" | ProductCategory
   >("All");
@@ -85,15 +109,6 @@ export default function NovaTechStoreWithGhostPassPage() {
     null
   );
 
-  const [mode, setMode] = useState<AgentMode>("ghostpass");
-  const [prompt, setPrompt] = useState("Buy wireless keyboard under $60");
-  const [tvOpen, setTvOpen] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isSettlingOverride, setIsSettlingOverride] = useState(false);
-  const [simulation, setSimulation] =
-    useState<SimulationRunState>(INITIAL_SIMULATION);
-
-  const promptInputRef = useRef<HTMLInputElement | null>(null);
   const mandateRef = useRef<SpendingMandate>(mandate);
   const runIdRef = useRef(0);
 
@@ -101,15 +116,32 @@ export default function NovaTechStoreWithGhostPassPage() {
     mandateRef.current = mandate;
   }, [mandate]);
 
+  const merchantOrders = useMemo(
+    () => [
+      ...manualOrders,
+      ...transactions.filter((tx) => tx.verdict === "APPROVED"),
+    ],
+    [manualOrders, transactions]
+  );
+
   async function refreshFromServerState() {
     try {
       const res = await fetch("/api/state", { cache: "no-store" });
       if (!res.ok) return;
       const data = (await res.json()) as {
         backend?: string;
+        paypalConfigured?: boolean;
+        sandboxBuyerLabel?: string;
         mandate?: SpendingMandate;
         transactions?: AuditTransaction[];
       };
+      if (data.backend) setStorageBackend(data.backend);
+      if (typeof data.paypalConfigured === "boolean") {
+        setPaypalConfigured(data.paypalConfigured);
+      }
+      if (data.sandboxBuyerLabel) {
+        setSandboxBuyerLabel(data.sandboxBuyerLabel);
+      }
       if (data.mandate) {
         setMandate(data.mandate);
         mandateRef.current = data.mandate;
@@ -120,7 +152,7 @@ export default function NovaTechStoreWithGhostPassPage() {
         writeClientTransactions(data.transactions);
       }
     } catch {
-      // Fallback gracefully to current state
+      // Offline / localStorage fallback
     }
   }
 
@@ -129,18 +161,33 @@ export default function NovaTechStoreWithGhostPassPage() {
     async function hydrate() {
       const localMandate = readClientMandate();
       const localTxs = readClientTransactions();
-      if (localMandate) setMandate(localMandate);
-      if (localTxs) setTransactions(localTxs);
 
       try {
         const res = await fetch("/api/state", { cache: "no-store" });
-        if (!res.ok || !active) return;
+        if (!active) return;
+
+        if (!res.ok) {
+          if (localMandate) setMandate(localMandate);
+          if (localTxs) setTransactions(localTxs);
+          return;
+        }
+
         const data = (await res.json()) as {
           backend?: string;
+          paypalConfigured?: boolean;
+          sandboxBuyerLabel?: string;
           mandate?: SpendingMandate;
           transactions?: AuditTransaction[];
         };
         if (!active) return;
+
+        if (data.backend) setStorageBackend(data.backend);
+        if (typeof data.paypalConfigured === "boolean") {
+          setPaypalConfigured(data.paypalConfigured);
+        }
+        if (data.sandboxBuyerLabel) {
+          setSandboxBuyerLabel(data.sandboxBuyerLabel);
+        }
 
         if (data.backend === "neon-postgres") {
           if (data.mandate) {
@@ -152,30 +199,42 @@ export default function NovaTechStoreWithGhostPassPage() {
             writeClientTransactions(data.transactions);
           }
         } else {
-          // If clientStorage already has local edits/history, sync them up once to server memory
-          if (localMandate && (!data.transactions || data.transactions.length === 0)) {
-            void syncServerState({ action: "save_mandate", mandate: localMandate });
-          } else if (!localMandate && data.mandate) {
-            setMandate(data.mandate);
-          }
-          if (!localTxs && Array.isArray(data.transactions)) {
-            setTransactions(data.transactions);
-          } else if (Array.isArray(data.transactions) && data.transactions.length > 0) {
+          if (Array.isArray(data.transactions) && data.transactions.length > 0) {
             setTransactions(data.transactions);
             writeClientTransactions(data.transactions);
+            if (data.mandate) {
+              setMandate(data.mandate);
+              writeClientMandate(data.mandate);
+            }
+          } else {
+            if (localMandate) {
+              setMandate(localMandate);
+              void syncServerState({ action: "save_mandate", mandate: localMandate });
+            } else if (data.mandate) {
+              setMandate(data.mandate);
+            }
+            if (localTxs) {
+              setTransactions(localTxs);
+            }
           }
         }
       } catch {
-        // Offline / localStorage fallback already applied above
+        if (!active) return;
+        if (localMandate) setMandate(localMandate);
+        if (localTxs) setTransactions(localTxs);
       }
     }
-    hydrate();
+    void hydrate();
     return () => {
       active = false;
     };
   }, []);
 
   async function persistMandate(next: SpendingMandate): Promise<SpendingMandate> {
+    const ok = await syncServerState({ action: "save_mandate", mandate: next });
+    if (!ok) {
+      throw new Error("Failed to save mandate");
+    }
     const saved: SpendingMandate = {
       ...next,
       updatedAt: new Date().toISOString(),
@@ -183,7 +242,6 @@ export default function NovaTechStoreWithGhostPassPage() {
     setMandate(saved);
     mandateRef.current = saved;
     writeClientMandate(saved);
-    await syncServerState({ action: "save_mandate", mandate: saved });
     return saved;
   }
 
@@ -200,40 +258,74 @@ export default function NovaTechStoreWithGhostPassPage() {
   }
 
   function handleHumanBuyNow(product: Product) {
-    setCheckoutDriver({ type: "human", items: [product] });
+    setCheckoutDriver({ type: "human", items: [product], source: "buy_now" });
   }
 
   function handleOpenCartCheckout() {
     if (cartItems.length === 0) return;
-    setCheckoutDriver({ type: "human", items: cartItems });
+    setCheckoutDriver({ type: "human", items: cartItems, source: "cart" });
   }
 
-  function handleHumanPaySuccess(items: Product[]) {
+  async function handleHumanPaySuccess(
+    items: Product[],
+    method: "paypal" | "card",
+    source: "cart" | "buy_now",
+    orderId: string
+  ) {
+    const total = items.reduce((s, item) => s + item.price, 0);
+    const label =
+      items.length === 1
+        ? items[0].name
+        : `${items[0]?.name ?? "NovaTech Item"} (+${items.length - 1} more)`;
+
     if (items[0]) {
-      void fetch("/api/store/checkout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: items[0].id,
-          amount: items.reduce((s, item) => s + item.price, 0),
-          mode: "GHOSTPASS",
-          isManualHumanCheckout: true,
-        }),
-      }).catch(() => undefined);
+      try {
+        await fetch("/api/store/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productId: items[0].id,
+            amount: total,
+            mode: "GHOSTPASS",
+            isManualHumanCheckout: true,
+          }),
+        });
+      } catch {
+        // Non-blocking manual storefront receipt
+      }
     }
-    if (items.length === cartItems.length && items.length > 0) {
+
+    const manualOrder: AuditTransaction = {
+      id: `tx-human-${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      mode: "ghostpass",
+      prompt: `Direct Customer ${method.toUpperCase()} Checkout`,
+      requestedProductId: items[0]?.id,
+      requestedProductName: label,
+      cartItems: items.map((i) => ({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        category: i.category,
+      })),
+      totalAmount: total,
+      verdict: "APPROVED",
+      riskScore: 0,
+      piiExposedPct: 0,
+      merchantStatusCode: 200,
+      paypalOrderId: orderId,
+      reason: `Direct storefront checkout (${method}).`,
+    };
+    setManualOrders((prev) => [manualOrder, ...prev]);
+
+    if (source === "cart") {
       setCartItems([]);
     }
   }
 
-  function updateAgentSimulation(next: SimulationRunState) {
-    setSimulation(next);
-    setCheckoutDriver({ type: "agent", simulation: next });
-  }
-
   async function handleRunAgent(promptOverride?: string) {
     const activePrompt = (promptOverride ?? prompt).trim();
-    if (!activePrompt || isRunning) return;
+    if (!activePrompt || isRunning || isSettlingOverride) return;
 
     const currentRunId = ++runIdRef.current;
     setIsRunning(true);
@@ -241,18 +333,13 @@ export default function NovaTechStoreWithGhostPassPage() {
     try {
       const currentMandate = mandateRef.current;
 
-      // Stage 1: Trigger Blind Shopping Agent + Gatekeeper via /api/agent/execute
-      updateAgentSimulation({
+      setSimulation({
         ...INITIAL_SIMULATION,
         stage: "agent_browsing",
         mode,
         prompt: activePrompt,
         piiExposedPct: mode === "standard_bot" ? 100 : 0,
         merchantBadge: "Agent Scanning NovaTech Catalog...",
-        shippingRelayLabel:
-          mode === "standard_bot"
-            ? "Bot Typing Raw Home Address"
-            : "PayPal Vault Direct Relay",
         gatekeeperNotes: [
           `• Running "${activePrompt}" via Two-Brain Pipeline...`,
           mode === "standard_bot"
@@ -267,6 +354,7 @@ export default function NovaTechStoreWithGhostPassPage() {
         body: JSON.stringify({
           prompt: activePrompt,
           mode: mode === "standard_bot" ? "STANDARD_BOT" : "GHOSTPASS",
+          sessionId: sessionApiKey,
           mandate: {
             id: currentMandate.id,
             ruleText: currentMandate.ruleText,
@@ -288,9 +376,8 @@ export default function NovaTechStoreWithGhostPassPage() {
 
       const execData = (await execResRaw.json()) as AgentExecuteResponse;
 
-      // Branch 1: Gatekeeper BLOCKED (Prompt Injection or Restricted Policy / Daily Cap)
       if (execData.decision === "BLOCK") {
-        updateAgentSimulation({
+        setSimulation({
           ...INITIAL_SIMULATION,
           stage: "complete",
           mode,
@@ -304,7 +391,6 @@ export default function NovaTechStoreWithGhostPassPage() {
           injectedProduct: execData.injectedProduct,
           proposedTotal: execData.proposedCartTotal,
           paypalOrderId: null,
-          shippingRelayLabel: "PayPal Vault Locked ($0 Moved)",
           gatekeeperNotes: execData.gatekeeperNotes,
           agentContextPreview: execData.redactedContext,
           pendingOverrideTransactionId: execData.auditEventId ?? null,
@@ -313,9 +399,8 @@ export default function NovaTechStoreWithGhostPassPage() {
         return;
       }
 
-      // Branch 2: Gatekeeper Paused for 1-Click Human Override
       if (execData.decision === "REQUIRE_HUMAN") {
-        updateAgentSimulation({
+        setSimulation({
           ...INITIAL_SIMULATION,
           stage: "complete",
           mode,
@@ -324,13 +409,12 @@ export default function NovaTechStoreWithGhostPassPage() {
           riskScore: execData.riskScore,
           piiExposedPct: 0,
           merchantStatusCode: 200,
-          merchantBadge: "✓ Mandate Ready · Awaiting Human Tap",
+          merchantBadge: "Mandate Ready · Awaiting Human Approval",
           selectedProduct: execData.selectedProduct,
           injectedProduct: null,
           proposedTotal: execData.proposedCartTotal,
           paypalOrderId: null,
           approvalToken: execData.approvalToken ?? null,
-          shippingRelayLabel: "PayPal Vault Direct Relay (On Hold)",
           gatekeeperNotes: execData.gatekeeperNotes,
           agentContextPreview: execData.redactedContext,
           pendingOverrideTransactionId: execData.auditEventId ?? null,
@@ -339,29 +423,23 @@ export default function NovaTechStoreWithGhostPassPage() {
         return;
       }
 
-      // Branch 3: Submit to NovaTech Merchant Anti-Bot Firewall (/api/store/checkout)
-      const checkingSim: SimulationRunState = {
+      // Stage 3 & 4: Submit to NovaTech Merchant Firewall -> Settle via PayPal Orders v2
+      setSimulation({
         ...INITIAL_SIMULATION,
-        stage: "merchant_checking",
+        stage: "paypal_settling",
         mode,
         prompt: activePrompt,
         piiExposedPct: execData.piiExposedPct,
         selectedProduct: execData.selectedProduct,
-        injectedProduct: null,
         proposedTotal: execData.proposedCartTotal,
         merchantBadge:
           mode === "standard_bot"
             ? "NovaTech Anti-Bot Firewall Checking..."
-            : "Verifying X-PayPal-GhostPass-Signature...",
-        shippingRelayLabel:
-          mode === "standard_bot"
-            ? "Bot Typing Raw Home Address"
-            : "PayPal Vault Direct Relay",
+            : "Settling via PayPal Sandbox Orders v2...",
         gatekeeperNotes: execData.gatekeeperNotes,
         agentContextPreview:
           execData.exposedPiiContext ?? execData.redactedContext,
-      };
-      updateAgentSimulation(checkingSim);
+      });
 
       const checkoutHeaders: Record<string, string> = {
         "Content-Type": "application/json",
@@ -390,15 +468,21 @@ export default function NovaTechStoreWithGhostPassPage() {
       const checkoutData = (await checkoutResRaw.json()) as CheckoutResponse;
 
       if (checkoutResRaw.status === 403 || checkoutData.httpStatus === 403) {
-        updateAgentSimulation({
-          ...checkingSim,
+        setSimulation({
+          ...INITIAL_SIMULATION,
           stage: "complete",
+          mode,
+          prompt: activePrompt,
           verdict: "403_REJECTED",
           riskScore: 86,
           piiExposedPct: checkoutData.piiExposedPct,
           merchantStatusCode: 403,
           merchantBadge: "403 Forbidden: Unverified AI Scraper Blocked",
+          selectedProduct: execData.selectedProduct,
+          proposedTotal: execData.proposedCartTotal,
           paypalOrderId: null,
+          agentContextPreview:
+            execData.exposedPiiContext ?? execData.redactedContext,
           gatekeeperNotes: [
             "✗ Personal name, email & address leaked into bot payload.",
             `✗ ${checkoutData.message}`,
@@ -409,26 +493,42 @@ export default function NovaTechStoreWithGhostPassPage() {
         return;
       }
 
-      updateAgentSimulation({
-        ...checkingSim,
+      if (!checkoutResRaw.ok) {
+        throw new Error(
+          checkoutData.message || `Checkout failed (${checkoutResRaw.status})`
+        );
+      }
+
+      setSimulation({
+        ...INITIAL_SIMULATION,
         stage: "complete",
+        mode,
+        prompt: activePrompt,
         verdict: "APPROVED",
         riskScore: execData.riskScore,
         piiExposedPct: 0,
         merchantStatusCode: 200,
-        merchantBadge: "✓ Verified PayPal Human Mandate Accepted",
-        paypalOrderId: checkoutData.receiptToken ?? null,
+        merchantBadge: "Verified PayPal Human Mandate Accepted",
+        selectedProduct: execData.selectedProduct,
+        proposedTotal: execData.proposedCartTotal,
+        paypalOrderId:
+          checkoutData.paypalOrderId ?? checkoutData.receiptToken ?? null,
+        paypalStatus: checkoutData.paypalStatus ?? null,
+        sandboxActivityUrl: checkoutData.sandboxActivityUrl ?? null,
+        approveUrl: checkoutData.approveUrl ?? null,
+        liveSandbox: Boolean(checkoutData.liveSandbox),
         verificationHash: checkoutData.verificationHash ?? null,
+        agentContextPreview: execData.redactedContext,
         gatekeeperNotes: [
           ...execData.gatekeeperNotes,
           `✓ ${checkoutData.message}`,
-          `✓ Verification Hash: ${checkoutData.verificationHash ?? "VERIFIED"}`,
         ],
       });
       await refreshFromServerState();
     } catch (err) {
+      if (runIdRef.current !== currentRunId) return;
       const msg = err instanceof Error ? err.message : "Pipeline error";
-      updateAgentSimulation({
+      setSimulation({
         ...INITIAL_SIMULATION,
         stage: "complete",
         mode,
@@ -454,6 +554,7 @@ export default function NovaTechStoreWithGhostPassPage() {
       return;
     }
 
+    const activeRunId = runIdRef.current;
     setIsSettlingOverride(true);
     try {
       const resRaw = await fetch("/api/store/checkout", {
@@ -473,33 +574,35 @@ export default function NovaTechStoreWithGhostPassPage() {
         }),
       });
 
+      if (runIdRef.current !== activeRunId) return;
+
       const data = (await resRaw.json()) as CheckoutResponse;
 
       if (!resRaw.ok) {
-        const failedSim: SimulationRunState = {
-          ...simulation,
+        setSimulation((prev) => ({
+          ...prev,
           stage: "complete",
           verdict: "403_REJECTED",
-          merchantStatusCode: 403,
-          merchantBadge: "Override Verification Failed",
-          gatekeeperNotes: [`✗ ${data.message}`],
-        };
-        setSimulation(failedSim);
-        if (checkoutDriver?.type === "agent") {
-          setCheckoutDriver({ type: "agent", simulation: failedSim });
-        }
+          merchantStatusCode: resRaw.status === 403 ? 403 : 500,
+          merchantBadge: "Override Settlement Failed",
+          gatekeeperNotes: [`✗ ${data.message || "Override failed"}`],
+        }));
         await refreshFromServerState();
         return;
       }
 
-      const nextSim: SimulationRunState = {
-        ...simulation,
+      setSimulation((prev) => ({
+        ...prev,
         stage: "complete",
         verdict: "APPROVED",
         riskScore: 15,
         merchantStatusCode: 200,
-        merchantBadge: "✓ Human Override + PayPal Mandate Verified",
-        paypalOrderId: data.receiptToken ?? null,
+        merchantBadge: "Human Override + PayPal Orders v2 Settled",
+        paypalOrderId: data.paypalOrderId ?? data.receiptToken ?? null,
+        paypalStatus: data.paypalStatus ?? null,
+        sandboxActivityUrl: data.sandboxActivityUrl ?? null,
+        approveUrl: data.approveUrl ?? null,
+        liveSandbox: Boolean(data.liveSandbox),
         verificationHash: data.verificationHash ?? null,
         approvalToken: null,
         pendingOverrideTransactionId: null,
@@ -508,12 +611,18 @@ export default function NovaTechStoreWithGhostPassPage() {
           `✓ ${data.message}`,
           "✓ 0% PII exposed to the AI agent.",
         ],
-      };
-      setSimulation(nextSim);
-      if (checkoutDriver?.type === "agent") {
-        setCheckoutDriver({ type: "agent", simulation: nextSim });
-      }
+      }));
       await refreshFromServerState();
+    } catch (err) {
+      if (runIdRef.current !== activeRunId) return;
+      const msg = err instanceof Error ? err.message : "Override failed";
+      setSimulation((prev) => ({
+        ...prev,
+        stage: "complete",
+        verdict: "BLOCKED",
+        merchantBadge: "Override Error",
+        gatekeeperNotes: [`✗ ${msg}`],
+      }));
     } finally {
       setIsSettlingOverride(false);
     }
@@ -522,23 +631,20 @@ export default function NovaTechStoreWithGhostPassPage() {
   async function handleRejectOverride() {
     if (isSettlingOverride) return;
 
+    const activeRunId = runIdRef.current;
     setIsSettlingOverride(true);
     try {
       if (simulation.pendingOverrideTransactionId) {
         await syncServerState({
-          action: "update_tx",
+          action: "decline_override",
           txId: simulation.pendingOverrideTransactionId,
-          patch: {
-            verdict: "BLOCKED",
-            merchantStatusCode: 422,
-            paypalOrderId: null,
-            reason: "Rejected by Human during 1-Click Over-Budget Confirmation.",
-          },
         });
       }
 
-      const nextSim: SimulationRunState = {
-        ...simulation,
+      if (runIdRef.current !== activeRunId) return;
+
+      setSimulation((prev) => ({
+        ...prev,
         stage: "complete",
         verdict: "BLOCKED",
         merchantStatusCode: null,
@@ -550,24 +656,23 @@ export default function NovaTechStoreWithGhostPassPage() {
           "✓ Purchase declined by human tap.",
           "✓ PayPal Vault stayed locked ($0.00 moved).",
         ],
-      };
-      setSimulation(nextSim);
-      if (checkoutDriver?.type === "agent") {
-        setCheckoutDriver({ type: "agent", simulation: nextSim });
-      }
+      }));
       await refreshFromServerState();
+    } catch {
+      // Keep UI unlocked even if network fails
     } finally {
       setIsSettlingOverride(false);
     }
   }
 
   async function handleResetDemo() {
-    if (isRunning) return;
+    if (isRunning || isSettlingOverride) return;
     runIdRef.current += 1;
     const freshMandate = resetClientStorage();
     setMandate(freshMandate);
     mandateRef.current = freshMandate;
     setTransactions([]);
+    setManualOrders([]);
     setSimulation(INITIAL_SIMULATION);
     setCheckoutDriver(null);
     await syncServerState({ action: "reset" });
@@ -576,83 +681,76 @@ export default function NovaTechStoreWithGhostPassPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col bg-[#FAFAFA]">
-      {/* Browser Frame Pull-Down X-Ray TV */}
-      <PullDownTV
-        open={tvOpen}
-        onClose={() => setTvOpen(false)}
-        simulation={simulation}
-        mandate={mandate}
-        transactions={transactions}
-        isRunning={isRunning}
-        isSettlingOverride={isSettlingOverride}
-        onApproveOverride={handleApproveOverride}
-        onRejectOverride={handleRejectOverride}
+      <AppShellHeader
+        activeView={activeView}
+        onChangeView={setActiveView}
+        paypalConfigured={paypalConfigured}
+        storageBackend={storageBackend}
+        merchantOrdersCount={merchantOrders.length}
+        isBusy={isRunning || isSettlingOverride}
         onResetDemo={handleResetDemo}
       />
 
-      {/* Slim Top Browser Chrome Bar */}
-      <BrowserChromeBar
-        tvOpen={tvOpen}
-        onToggleTv={() => setTvOpen((prev) => !prev)}
-        activeVerdict={simulation.verdict}
-        isRunning={isRunning}
-      />
+      {activeView === "console" ? (
+        <main className="flex-1">
+          <ControlPlaneView
+            mandate={mandate}
+            onUpdateMandate={persistMandate}
+            sandboxBuyerLabel={sandboxBuyerLabel}
+            sessionApiKey={sessionApiKey}
+            mode={mode}
+            onModeChange={setMode}
+            prompt={prompt}
+            onPromptChange={setPrompt}
+            onRunAgent={handleRunAgent}
+            isRunning={isRunning}
+            isSettlingOverride={isSettlingOverride}
+            simulation={simulation}
+            transactions={transactions}
+            onApproveOverride={handleApproveOverride}
+            onRejectOverride={handleRejectOverride}
+          />
+        </main>
+      ) : (
+        <>
+          <StoreNavbar
+            selectedCategory={selectedCategory}
+            onSelectCategory={setSelectedCategory}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            cartItems={cartItems}
+            onRemoveFromCart={handleRemoveFromCart}
+            onClearCart={handleClearCart}
+            onOpenCartCheckout={handleOpenCartCheckout}
+            merchantOrders={merchantOrders}
+          />
 
-      {/* Layer 1: Independent Merchant Storefront (NovaTech — 100% Pure E-Commerce) */}
-      <StoreNavbar
-        selectedCategory={selectedCategory}
-        onSelectCategory={setSelectedCategory}
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        cartItems={cartItems}
-        onRemoveFromCart={handleRemoveFromCart}
-        onClearCart={handleClearCart}
-        onOpenCartCheckout={handleOpenCartCheckout}
-      />
+          <main className="flex-1">
+            <ProductGrid
+              products={PRODUCT_CATALOG}
+              selectedCategory={selectedCategory}
+              onSelectCategory={setSelectedCategory}
+              searchQuery={searchQuery}
+              onResetFilters={() => {
+                setSelectedCategory("All");
+                setSearchQuery("");
+              }}
+              onAddToCart={handleAddToCart}
+              onBuyNow={handleHumanBuyNow}
+              highlightedProductId={simulation.selectedProduct?.id ?? null}
+            />
+          </main>
 
-      <main className="flex-1">
-        <ProductGrid
-          products={PRODUCT_CATALOG}
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          searchQuery={searchQuery}
-          onResetFilters={() => {
-            setSelectedCategory("All");
-            setSearchQuery("");
-          }}
-          onAddToCart={handleAddToCart}
-          onBuyNow={handleHumanBuyNow}
-          highlightedProductId={simulation.selectedProduct?.id ?? null}
-        />
-      </main>
-
-      {/* NovaTech Standard Store Checkout Modal */}
-      <StoreCheckoutModal
-        driver={checkoutDriver}
-        onClose={() => setCheckoutDriver(null)}
-        onHumanPaySuccess={handleHumanPaySuccess}
-        isSettlingOverride={isSettlingOverride}
-        onApproveOverride={handleApproveOverride}
-        onRejectOverride={handleRejectOverride}
-      />
-
-      {/* Layer 2: External Browser Extension Companion (Bottom-Right) */}
-      <AgentExtensionWidget
-        mandate={mandate}
-        onUpdateMandate={persistMandate}
-        mode={mode}
-        onModeChange={setMode}
-        prompt={prompt}
-        onPromptChange={setPrompt}
-        onRunPrompt={handleRunAgent}
-        isRunning={isRunning}
-        simulation={simulation}
-        onOpenTv={() => {
-          setCheckoutDriver(null);
-          setTvOpen(true);
-        }}
-        inputRef={promptInputRef}
-      />
+          <StoreCheckoutModal
+            driver={checkoutDriver}
+            onClose={() => setCheckoutDriver(null)}
+            onHumanPaySuccess={handleHumanPaySuccess}
+            isSettlingOverride={isSettlingOverride}
+            onApproveOverride={handleApproveOverride}
+            onRejectOverride={handleRejectOverride}
+          />
+        </>
+      )}
     </div>
   );
 }

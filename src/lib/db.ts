@@ -3,6 +3,7 @@ import {
   DEFAULT_MANDATE,
   SpendingMandate,
 } from "@/data/catalog";
+import { resetConsumedTokens } from "@/lib/crypto/mandateSigner";
 
 export type StorageBackendMode = "memory-localstorage" | "neon-postgres";
 
@@ -323,6 +324,7 @@ export async function resetDemoState(): Promise<{
 
   getServerMemoryState().mandate = cloneMandate(freshMandate);
   getServerMemoryState().transactions = [];
+  resetConsumedTokens();
 
   return {
     mandate: cloneMandate(freshMandate),

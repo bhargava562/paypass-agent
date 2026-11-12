@@ -1,108 +1,108 @@
 # PayPal GhostPass — System Architecture & Software Design Patterns (ARD)
 
-> Technical Architecture Reference Document (ARD): real-world browser/merchant boundary separation, Two-Brain Gemini 2.5 Flash pipeline, HMAC-SHA256 mandate attestation, and complete Input → Process → Output (IPO) specifications.
+> Technical Architecture Reference Document (ARD): Clean 2-View Infrastructure App (Control Plane + Live Merchant Storefront), Two-Brain Gemini 2.5 Flash pipeline, HMAC-SHA256 mandate attestation, and live PayPal Sandbox Orders v2 settlement.
 
 ---
 
-## 1. Real-World Boundary Separation
+## 1. Real-World Infrastructure Architecture
 
-In the real world, an online retailer (**NovaTech Store**) knows nothing about your personal AI agent or your PayPal spending rules. It is an ordinary e-commerce website with standard **Add to Cart**, **Buy Now**, and a **Store Checkout Modal** protected by an anti-bot checkout firewall.
+**PayPal GhostPass** is structured as a real **Agentic Payment Infrastructure Control Plane** alongside an independent **NovaTech Demo Merchant Storefront**, connected via standardized REST APIs:
 
-Your **Personal AI Agent** and **PayPal GhostPass** live **outside** the store inside your browser/wallet layer:
-
-1. **Top Browser Chrome (`src/components/BrowserChromeBar.tsx`) + Pull-Down X-Ray TV (`src/components/PullDownTV.tsx`)**
-   - Displays `demo-browser://novatech.store` and **`Behind the Scenes (X-Ray View)`** at the browser frame level.
-   - Slides down a dark-glass diagnostic television showing **3 Live Security Cameras** (Privacy X-Ray, Store Security Guard, PayPal Money Vault) and the **AG Grid Audit Ledger**.
-2. **Layer 1 — Independent Merchant Storefront (`NovaTech` — `StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`)**
-   - 100% pure consumer electronics & technical book e-commerce UI—zero mention of AI, mandates, or GhostPass on store navigation, hero banners, or product cards.
-   - Standard **Buy Now** and **Add to Cart** open NovaTech's **Store Checkout Modal**, backed by **`POST /api/store/checkout`**.
-   - Enforces anti-bot checkout defense: unverified external scraper requests (`mode: "STANDARD_BOT"`) or missing/tampered `X-PayPal-GhostPass-Signature` headers are rejected with **`HTTP 403 Forbidden`** (`error: "BOT_SCRAPER_BLOCKED"`).
-3. **Layer 2 — External Browser Extension Companion (`src/components/AgentExtensionWidget.tsx`)**
-   - Floating bottom-right browser-extension widget (`PayPal GhostPass · Personal AI Agent Extension`) sitting outside the merchant DOM.
-   - Hosts the user's editable **PayPal GhostPass Mandate** (`ruleText`, `dailyCap`, `spentToday`, `autoApproveLimit`), **Identity Mode Toggle** (`Standard AI Bot` vs. `PayPal GhostPass`), prompt input, and 3 quick-test scenarios.
-4. **Two-Brain Engine, HMAC Mandate Signer & Hybrid Persistence**
-   - **Stage 1 — Blind Shopping Agent (`src/lib/agents/shoppingAgent.ts`):** Accepts `{ prompt, sessionId, mode }` with **0% PII** in scope, queries `PRODUCT_CATALOG` (plus optional `CHANNEL3_API_KEY` context) via `@google/genai` (`gemini-2.5-flash` structured JSON `responseSchema`, with deterministic keyword fallback), and extracts `hiddenHtmlMetadata`.
-   - **Stage 2 — Gatekeeper Policy & Prompt-Injection Auditor (`src/lib/agents/gatekeeperAgent.ts`):** Runs zero-latency deterministic math & regex checks (`isDailyCapExceeded`, `isOverAutoApproveLimit`, `hasInjectionSignature`, `isRestrictedPolicyItem`) followed by `gemini-2.5-flash` semantic auditing. Resolves to `BLOCK`, `REQUIRE_HUMAN` (mints signed `approvalToken`), or `AUTO_APPROVE` (mints HMAC-SHA256 `X-PayPal-GhostPass-Signature` via `src/lib/crypto/mandateSigner.ts`).
-   - **Stage 3 — Merchant Firewall (`POST /api/store/checkout`):** Validates HMAC-SHA256 signature (`verifyGhostPassMandate` / `verifyHumanOverrideToken`), expiry, exact dollar amount, and zero raw PII before returning `HTTP 200 APPROVED_BY_MERCHANT` (`readyForPayPalCapture: true`).
-   - **Hybrid Adapter (`src/lib/db.ts` + `src/app/api/state/route.ts` + `src/lib/clientStorage.ts`):** Uses Server In-Memory + validated `localStorage` by default and **Neon PostgreSQL** (`migrations/001_init.sql`) when `DATABASE_URL` is configured.
+1. **App Shell & View Switcher (`src/components/AppShellHeader.tsx`)**
+   - Brand: **PayPal GhostPass** (`Agentic Commerce Authorization & Settlement Infrastructure`) + live `PayPal Sandbox Connected` status badge.
+   - Clean 2-View Switcher: **`GhostPass Control Plane`** ⟷ **`NovaTech Storefront`**.
+2. **View 1 — PayPal GhostPass Control Plane (`src/components/ControlPlaneView.tsx` + `AuditLedgerGrid.tsx`)**
+   - **Left Column:** PayPal Vault & Spending Mandate editor (connected Sandbox buyer, plain-English rule, auto-approve cap, daily budget progress bar, copyable Zero-PII session key `gp_live_...`) + **Live Agent Sandbox Runner** (mode toggle, prompt input, 3 quick-test scenarios, copyable `curl`/MCP JSON payload).
+   - **Right Column:** Plain-English 4-Step Live Execution Pipeline (**1. Privacy Shield**, **2. Scam & Rule Check**, **3. Store Checkout Gate**, **4. PayPal Sandbox Settlement** with 1-Click Human Approve/Reject and `Verify in PayPal Sandbox ↗`).
+   - **Bottom Panel:** KPI summary cards + filterable `ag-grid-react` Compliance & Audit Ledger.
+3. **View 2 — Independent Merchant Storefront (`NovaTech` — `StoreNavbar.tsx`, `ProductGrid.tsx`, `StoreCheckoutModal.tsx`)**
+   - 100% pure consumer e-commerce store (zero floating popups, zero AI/Mandate branding).
+   - Features **NovaTech Order Fulfillment (`Orders`)** showing agent-placed PayPal orders arriving live with their PayPal Sandbox Order IDs and Direct Shipping Relay confirmation.
+4. **Server Pipeline (`shoppingAgent.ts`, `gatekeeperAgent.ts`, `mandateSigner.ts`, `paypal/client.ts`, `db.ts`)**
+   - **Stage 1 (`src/lib/agents/shoppingAgent.ts`):** Blind `gemini-2.5-flash` catalog selection (`0% PII`) + `hiddenHtmlMetadata` extraction.
+   - **Stage 2 (`src/lib/agents/gatekeeperAgent.ts`):** Deterministic math/regex security checks + `gemini-2.5-flash` semantic audit → `BLOCK`, `REQUIRE_HUMAN` (`approvalToken`), or `AUTO_APPROVE` (`X-PayPal-GhostPass-Signature`).
+   - **Stage 3 (`POST /api/store/checkout`):** Merchant anti-bot firewall rejecting unverified bots (`HTTP 403 BOT_SCRAPER_BLOCKED`) and verifying HMAC-SHA256 signatures before settling via PayPal.
+   - **Stage 4 (`src/lib/paypal/client.ts` & `POST /api/paypal/settle`):** Exchanges `PAYPAL_CLIENT_ID` + `PAYPAL_CLIENT_SECRET` for a cached OAuth2 bearer token at `https://api-m.sandbox.paypal.com/v1/oauth2/token`, creates/captures a PayPal Sandbox order via `POST /v2/checkout/orders`, and persists the `paypalOrderId` in `src/lib/db.ts`.
 
 ```mermaid
 flowchart TD
-    subgraph Browser["Browser & Wallet Layer (Outside Merchant Site)"]
-        Chrome["BrowserChromeBar (demo-browser://novatech.store)"] --> TV["PullDownTV (3 Cameras + AG Grid)"]
-        Ext["AgentExtensionWidget (Bottom-Right Companion)"] -->|"POST /api/agent/execute"| Exec["/api/agent/execute"]
+    subgraph ControlPlane["View 1: PayPal GhostPass Control Plane (Infrastructure Console)"]
+        Vault["Mandate Vault + Zero-PII Key (gp_live_...)"] --> Runner["Live Agent Sandbox Runner + cURL/MCP Export"]
+        Runner -->|"POST /api/agent/execute"| Exec["/api/agent/execute"]
+        Pipe["4-Step Plain-English Pipeline"] --> Grid["AG Grid Compliance & Audit Ledger"]
     end
 
-    subgraph TwoBrain["Two-Brain Server Pipeline (0% PII in GhostPass)"]
-        Exec -->|"Stage 1"| Shop["shoppingAgent.ts (Gemini 2.5 Flash + Catalog)"]
-        Shop -->|"Proposed Cart + hiddenHtmlMetadata"| Gate["gatekeeperAgent.ts (Deterministic + Gemini Audit)"]
-        Gate -->|"Injection / Daily Cap / Gift Card"| Block["BLOCK (Risk 85-99, $0 Moved)"]
+    subgraph TwoBrain["Two-Brain Engine + Crypto Airlock"]
+        Exec -->|"Stage 1 (0% PII)"| Shop["shoppingAgent.ts (Gemini 2.5 Flash)"]
+        Shop -->|"Cart + hiddenHtmlMetadata"| Gate["gatekeeperAgent.ts (Deterministic + Gemini Audit)"]
+        Gate -->|"Injection / Cap / Gift Card"| Block["BLOCK (Risk 85-98, $0 Moved)"]
         Gate -->|"Over Auto-Approve Cap"| Human["REQUIRE_HUMAN (Signed approvalToken)"]
         Gate -->|"Safe & In-Budget"| Sign["mandateSigner.ts (HMAC-SHA256 Signature)"]
-        Exec -->|"STANDARD_BOT (Skip Gatekeeper)"| BotPII["100% Raw PII Attached"]
+        Exec -->|"STANDARD_BOT"| BotPII["100% Raw PII Attached"]
     end
 
-    subgraph Store["Independent Merchant Website (NovaTech Store)"]
-        Grid["ProductGrid + StoreCheckoutModal"] --> Firewall["POST /api/store/checkout (Anti-Bot Firewall)"]
-        BotPII -->|"No Signature"| Firewall
+    subgraph MerchantAndPayPal["View 2: NovaTech Merchant Store + PayPal Sandbox Orders v2"]
+        BotPII -->|"No Signature"| Firewall["POST /api/store/checkout"]
         Sign -->|"X-PayPal-GhostPass-Signature"| Firewall
         Human -->|"1-Click Approve -> humanOverrideToken"| Firewall
-        Firewall -->|"Invalid / Bot"| Err403["403 Forbidden: BOT_SCRAPER_BLOCKED"]
-        Firewall -->|"HMAC Verified"| Ok200["200 OK: APPROVED_BY_MERCHANT (Ready for PayPal Capture)"]
+        Firewall -->|"403 Forbidden"| Err403["BOT_SCRAPER_BLOCKED"]
+        Firewall -->|"200 Verified Mandate"| PayPal["src/lib/paypal/client.ts (OAuth2 + Orders v2)"]
+        PayPal -->|"PayPal Sandbox Order ID"| Orders["NovaTech Merchant Order Fulfillment"]
     end
 
-    Block --> DB["src/lib/db.ts + /api/state"]
+    Block --> DB["src/lib/db.ts (/api/state + Neon/Memory)"]
     Err403 --> DB
-    Ok200 --> DB
-    DB --> TV
+    PayPal --> DB
+    DB --> Pipe
+    DB --> Grid
 ```
 
 ---
 
-## 2. Cross-Boundary Sequence Diagram (Split-2 Execution Flow)
+## 2. End-to-End Sequence Diagram (Including PayPal Sandbox Orders v2)
 
 ```mermaid
 sequenceDiagram
-    actor Human as Human Shopper
-    participant Ext as AgentExtensionWidget
+    actor User as Developer / Shopper
+    participant CP as GhostPass Control Plane
     participant Exec as POST /api/agent/execute
-    participant Shop as shoppingAgent (Blind)
     participant Gate as gatekeeperAgent + mandateSigner
     participant Store as POST /api/store/checkout
+    participant PP as PayPal Sandbox (api-m.sandbox.paypal.com)
     participant DB as db.ts (/api/state)
 
-    Human->>Ext: Runs prompt ("Buy wireless keyboard under $60")
-    Ext->>Exec: POST { prompt, mode, mandate }
+    User->>CP: Sets Mandate ("Max $60") & Runs Prompt
+    CP->>Exec: POST { prompt, mode, mandate }
 
     alt mode == STANDARD_BOT
-        Exec->>Shop: Match product (skips Gatekeeper)
-        Exec-->>Ext: Returns UNVERIFIED_BOT_READY + 100% exposed PII
-        Ext->>Store: POST { productId, amount, mode: "STANDARD_BOT" }
+        Exec-->>CP: UNVERIFIED_BOT_READY (100% PII exposed)
+        CP->>Store: POST { productId, amount, mode: "STANDARD_BOT" }
         Store->>DB: Log 403_REJECTED
-        Store-->>Ext: 403 Forbidden (BOT_SCRAPER_BLOCKED)
+        Store-->>CP: 403 Forbidden (BOT_SCRAPER_BLOCKED)
     else mode == GHOSTPASS
-        Exec->>Shop: Blind product match (0% PII) + extract hiddenHtmlMetadata
-        Shop-->>Exec: Cart + extractedMetadataPayload
-        Exec->>Gate: Deterministic guard + Gemini 2.5 Flash semantic audit
-
+        Exec->>Gate: Blind shoppingAgent (0% PII) -> gatekeeperAgent
         alt BLOCK (Prompt Injection / Gift Card / Daily Cap)
             Gate-->>Exec: BLOCK (Risk 88-98)
             Exec->>DB: Log BLOCKED ($0 moved)
-            Exec-->>Ext: 200 { decision: "BLOCK", reason }
-        else REQUIRE_HUMAN ($115 > $60 Auto-Approve Cap)
+            Exec-->>CP: 200 { decision: "BLOCK" }
+        else REQUIRE_HUMAN ($115 > $60 Auto-Approve)
             Gate-->>Exec: REQUIRE_HUMAN + signed approvalToken
             Exec->>DB: Log NEEDS_APPROVAL
-            Exec-->>Ext: 200 { decision: "REQUIRE_HUMAN", approvalToken }
-            Human->>Ext: Clicks "Approve $115.00" in Checkout Modal / Cam 3
-            Ext->>Store: POST { humanOverrideToken, auditEventId }
-            Store->>DB: Update audit row -> APPROVED + increment dailySpent
-            Store-->>Ext: 200 APPROVED_BY_MERCHANT
+            Exec-->>CP: 200 { decision: "REQUIRE_HUMAN", approvalToken }
+            User->>CP: Clicks "Approve $115 & Pay via PayPal"
+            CP->>Store: POST { humanOverrideToken, auditEventId }
+            Store->>PP: OAuth2 Token + POST /v2/checkout/orders
+            PP-->>Store: 201 Created (PayPal Order ID)
+            Store->>DB: Update audit row -> APPROVED + paypalOrderId
+            Store-->>CP: 200 APPROVED_BY_MERCHANT + PayPal Order ID
         else AUTO_APPROVE ($48 <= $60)
             Gate-->>Exec: AUTO_APPROVE + HMAC-SHA256 signature
-            Exec-->>Ext: 200 { decision: "AUTO_APPROVE", signature }
-            Ext->>Store: POST with X-PayPal-GhostPass-Signature header
-            Store->>DB: Log APPROVED + increment dailySpent
-            Store-->>Ext: 200 APPROVED_BY_MERCHANT (piiExposedPct: 0)
+            Exec-->>CP: 200 { decision: "AUTO_APPROVE", signature }
+            CP->>Store: POST with X-PayPal-GhostPass-Signature
+            Store->>PP: OAuth2 Token + POST /v2/checkout/orders
+            PP-->>Store: 201 Created (PayPal Order ID)
+            Store->>DB: Log APPROVED + paypalOrderId + dailySpent
+            Store-->>CP: 200 APPROVED_BY_MERCHANT + PayPal Order ID
         end
     end
 ```
@@ -111,28 +111,7 @@ sequenceDiagram
 
 ## 3. Software Design Patterns Used
 
-### 3.1 Cross-Boundary Facade & Mediator / Airlock Pattern
-- **Where:** `AgentExtensionWidget` mediates user intent externally; `gatekeeperAgent` sits as an airlock between `shoppingAgent` (untrusted DOM reader) and `mandateSigner` / merchant checkout.
-- **Why:** NovaTech Store remains completely decoupled from user wallets and AI agents, while `shoppingAgent` never holds PayPal credentials or raw user PII.
-
-### 3.2 Cryptographic Capability Token Pattern (`src/lib/crypto/mandateSigner.ts`)
-- **Where:** `signGhostPassMandate`, `signHumanOverrideToken`, `verifyGhostPassMandate`, `verifyHumanOverrideToken`.
-- **Why:** Every approved intent mints a short-lived HMAC-SHA256 token scoped strictly to `{ productId, maxAmount, sessionId, expiresAt, kind }`. Any dollar tampering, product swap, or expired replay fails `timingSafeEqual` verification at `/api/store/checkout`.
-
-### 3.3 Two-Layer Defense in Depth (Deterministic Guard + LLM Semantic Audit)
-- **Where:** `src/lib/agents/gatekeeperAgent.ts`.
-- **Why:** Deterministic math and regex checks run in `<1ms` (zero LLM quota burn when an injection or cap breach is caught immediately), while Gemini 2.5 Flash provides semantic policy auditing for subtle category violations.
-
-### 3.4 Strategy / Adapter Pattern (`src/lib/db.ts` + `src/lib/clientStorage.ts`)
-- **Where:** Server-side `db.ts` (accessed via `/api/state`, `/api/agent/execute`, `/api/store/checkout`) paired with validated browser `localStorage` caching.
-
----
-
-## 4. Complete Input → Process → Output (IPO) Specification
-
-| Scenario | Input | Process | Output |
-| :--- | :--- | :--- | :--- |
-| **A. Standard AI Bot** | `POST /api/store/checkout` `{ productId: "prod-kb-01", amount: 48, mode: "STANDARD_BOT" }` | Merchant firewall detects `STANDARD_BOT` without `X-PayPal-GhostPass-Signature`. | **HTTP `403`** `{ error: "BOT_SCRAPER_BLOCKED", piiExposedPct: 100 }` + `403_REJECTED` logged. |
-| **B. GhostPass Safe Buy** | `POST /api/agent/execute` `"Buy wireless keyboard under $60"`, `mode: "GHOSTPASS"` → `/api/store/checkout` | `shoppingAgent` selects `prod-kbd-q1` (`$48`); `gatekeeperAgent` mints HMAC signature; `/api/store/checkout` verifies signature & zero PII. | **HTTP `200`** `{ status: "APPROVED_BY_MERCHANT", verifiedMandate: true, captchaBypassed: true, piiExposedPct: 0 }`. |
-| **C1. Prompt Injection Trap** | `POST /api/agent/execute` `"Buy the braided USB-C cable"`, `mode: "GHOSTPASS"` | `shoppingAgent` extracts `hiddenHtmlMetadata` trying to inject `$75` Steam Gift Card; `gatekeeperAgent` catches signature (`$94` total). | **HTTP `200`** `{ decision: "BLOCK", riskScore: 98 }` + `BLOCKED` logged (`$0` moved). |
-| **C2. Over-Budget Override** | `POST /api/agent/execute` `"Buy Sony WH-1000XM5 headphones"`, `mode: "GHOSTPASS"` | Clean audio item (`$115 > $60` autoApproveLimit); `gatekeeperAgent` returns `REQUIRE_HUMAN` + signed `approvalToken`. | **HTTP `200`** `{ decision: "REQUIRE_HUMAN", approvalToken }` → 1-click Approve → `/api/store/checkout` **HTTP `200`**. |
+1. **Mediator / Airlock Pattern (`gatekeeperAgent.ts`):** Separates untrusted catalog/HTML reading (`shoppingAgent.ts`) from cryptographic authorization (`mandateSigner.ts`) and financial settlement (`paypal/client.ts`).
+2. **Cryptographic Capability Token Pattern (`mandateSigner.ts`):** Single-use HMAC-SHA256 tokens (`X-PayPal-GhostPass-Signature` & `humanOverrideToken`) bound to `{ productId, maxAmount, sessionId, expiresAt, kind }` verified with `timingSafeEqual`.
+3. **Token-Cached Gateway Client Pattern (`src/lib/paypal/client.ts`):** Caches PayPal Sandbox OAuth2 access tokens in memory with a 60-second safety buffer, retries Orders v2 cleanly if sandbox account metadata mismatches (`422`), and captures `APPROVED` orders automatically.
+4. **Strategy / Adapter Pattern (`src/lib/db.ts` + `src/lib/clientStorage.ts`):** Zero-config In-Memory + `localStorage` by default; seamless **Neon PostgreSQL** HTTP SQL persistence when `DATABASE_URL` is configured.

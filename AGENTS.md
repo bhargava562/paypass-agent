@@ -33,23 +33,22 @@ Before the final response, run one reporting pass. If candidates remain, from th
 
 ## PayPal GhostPass — Repository Architecture & Engineering Rules
 
-### 1. Real-World 2-Layer Boundary (Never Leak Across Layers)
-- **Layer 1 — NovaTech Merchant Website** (`src/components/StoreNavbar.tsx`, `src/components/ProductGrid.tsx`, `src/components/StoreCheckoutModal.tsx`, `src/app/api/store/checkout/route.ts`):
-  - Must remain 100% pure consumer e-commerce UI. Never display AI buttons, GhostPass badges, or Mandate controls inside NovaTech's own navbar, hero banner, or product cards.
-  - Enforces merchant anti-bot protection: rejects unverified scrapers (`STANDARD_BOT` or missing/invalid `X-PayPal-GhostPass-Signature`) with `HTTP 403`.
-- **Layer 2 — External Browser Extension & X-Ray TV** (`src/components/BrowserChromeBar.tsx`, `src/components/AgentExtensionWidget.tsx`, `src/components/PullDownTV.tsx`, `src/components/AuditLedgerGrid.tsx`):
-  - Lives outside the merchant store DOM. Hosts the user's Spending Mandate, Mode Toggle (`Standard AI Bot` vs. `PayPal GhostPass`), prompt input, and Pull-Down TV diagnostic cameras + AG Grid audit ledger.
+### 1. Clean 2-View Infrastructure Architecture (Control Plane + Storefront)
+- **Shell Navigation (`src/components/AppShellHeader.tsx`):** Clean 2-View switcher between **`GhostPass Control Plane`** (`ControlPlaneView.tsx` + `AuditLedgerGrid.tsx`) and **`NovaTech Storefront`** (`StoreNavbar.tsx` + `ProductGrid.tsx` + `StoreCheckoutModal.tsx`).
+- **Storefront Purity:** Never add floating popups, fake browser chrome bars, AI buttons, or GhostPass badges onto NovaTech's product cards or merchandising hero. Merchant order fulfillment appears cleanly inside NovaTech's **`Orders`** popover.
+- **Merchant Anti-Bot Firewall (`src/app/api/store/checkout/route.ts`):** Rejects unverified scrapers (`STANDARD_BOT` or missing/invalid `X-PayPal-GhostPass-Signature`) with `HTTP 403` (`BOT_SCRAPER_BLOCKED`).
 
-### 2. Two-Brain AI & Cryptography Pipeline
-- **Blind Shopping Agent** (`src/lib/agents/shoppingAgent.ts`): Never accepts user PII or PayPal credentials. Uses `@google/genai` (`gemini-2.5-flash` or `GEMINI_MODEL`) with deterministic catalog fallback.
-- **Gatekeeper Auditor** (`src/lib/agents/gatekeeperAgent.ts`): Deterministic math/regex security checks first (zero LLM quota burn on obvious injections/caps), then `gemini-2.5-flash` semantic audit.
+### 2. Two-Brain AI, Cryptography & PayPal Sandbox Pipeline
+- **Blind Shopping Agent** (`src/lib/agents/shoppingAgent.ts`): Never accepts user PII or PayPal credentials. Uses `@google/genai` (`gemini-2.5-flash` or `GEMINI_MODEL`) with deterministic fallback.
+- **Gatekeeper Auditor** (`src/lib/agents/gatekeeperAgent.ts`): Deterministic math/regex checks first (zero LLM quota burn on injections/caps), then `gemini-2.5-flash` semantic audit.
 - **HMAC-SHA256 Signer** (`src/lib/crypto/mandateSigner.ts`): Signs & verifies `X-PayPal-GhostPass-Signature` and `humanOverrideToken` scoped to `{ productId, maxAmount, sessionId, expiresAt }`.
+- **PayPal Sandbox Orders v2** (`src/lib/paypal/client.ts` & `src/app/api/paypal/settle/route.ts`): Caches OAuth2 token from `api-m.sandbox.paypal.com/v1/oauth2/token` and creates/captures `/v2/checkout/orders` (`intent: "CAPTURE"`).
 
 ### 3. Hybrid Storage & Schema Sync
 - **Server Persistence** (`src/lib/db.ts`): Server-only adapter supporting In-Memory by default and Neon PostgreSQL HTTP SQL when `DATABASE_URL` is configured. Never import `src/lib/db.ts` into `"use client"` components; use `/api/state` and `src/lib/clientStorage.ts` instead.
 - **SQL Migration** (`migrations/001_init.sql`): Keep table columns, `CHECK` constraints, and default `allowed_categories` strictly synchronized with `src/data/catalog.ts` and `src/lib/db.ts`.
 
 ### 4. Testing, Quota Conservation & Git Workflow
-- **Zero-Quota Testing:** All Vitest suites (`npm test` / `npx vitest run`) MUST mock `@google/genai` or pass `skipLlm: true` so test runs never consume live Gemini API quota.
+- **Zero-Quota Testing:** All Vitest suites (`npm test` / `npx vitest run`) MUST mock `@google/genai`, `fetch` (for PayPal/Neon), or pass `skipLlm: true` so test runs never consume live Gemini API quota.
 - **Windows Rollup WASM Override:** `package.json` pins `rollup` to `@rollup/wasm-node` so Vitest runs cleanly under Windows Application Control policies.
 - **Verification & Git Push:** Always run `npm test`, `npm run lint`, and `npm run build` after edits, and commit + push to `origin main` after every completed milestone.

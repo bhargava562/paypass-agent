@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 const DEFAULT_DEV_HMAC_SECRET = "ghostpass-dev-hmac-secret-change-in-prod-2026";
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
@@ -15,6 +15,44 @@ export interface MandateVerificationResult {
   valid: boolean;
   reason?: string;
   payload?: MandateSignaturePayload;
+}
+
+declare global {
+  var __ghostpassConsumedTokens: Map<string, number> | undefined;
+}
+
+function getConsumedTokenMap(): Map<string, number> {
+  if (!globalThis.__ghostpassConsumedTokens) {
+    globalThis.__ghostpassConsumedTokens = new Map<string, number>();
+  }
+  return globalThis.__ghostpassConsumedTokens;
+}
+
+export function resetConsumedTokens(): void {
+  globalThis.__ghostpassConsumedTokens?.clear();
+}
+
+/**
+ * Enforces single-use redemption for a signed GhostPass or Human Override token.
+ * Returns true on first use, false if already redeemed.
+ */
+export function consumeMandateToken(
+  token: string,
+  expiresAt?: number,
+  nowMs: number = Date.now()
+): boolean {
+  const store = getConsumedTokenMap();
+  for (const [key, exp] of store.entries()) {
+    if (exp <= nowMs) {
+      store.delete(key);
+    }
+  }
+  const digest = createHash("sha256").update(token).digest("hex");
+  if (store.has(digest)) {
+    return false;
+  }
+  store.set(digest, expiresAt ?? nowMs + DEFAULT_TTL_MS);
+  return true;
 }
 
 function getHmacSecret(): string {

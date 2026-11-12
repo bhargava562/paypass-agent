@@ -14,13 +14,18 @@ import {
 import { Product, SimulationRunState } from "@/data/catalog";
 
 export type CheckoutDriver =
-  | { type: "human"; items: Product[] }
+  | { type: "human"; items: Product[]; source: "cart" | "buy_now" }
   | { type: "agent"; simulation: SimulationRunState };
 
 interface StoreCheckoutModalProps {
   driver: CheckoutDriver | null;
   onClose: () => void;
-  onHumanPaySuccess: (items: Product[], method: "paypal" | "card") => void;
+  onHumanPaySuccess: (
+    items: Product[],
+    method: "paypal" | "card",
+    source: "cart" | "buy_now",
+    orderId: string
+  ) => void;
   isSettlingOverride: boolean;
   onApproveOverride: () => void;
   onRejectOverride: () => void;
@@ -193,7 +198,7 @@ function StoreCheckoutModalContent({
                   onClick={() => {
                     const id = `NT-PAY-${Date.now().toString().slice(-6)}`;
                     setHumanConfirmedOrderId(id);
-                    onHumanPaySuccess(driver.items, "paypal");
+                    onHumanPaySuccess(driver.items, "paypal", driver.source, id);
                   }}
                   className="cursor-pointer rounded-xl bg-[#0070E0] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-[#003087]"
                 >
@@ -204,11 +209,11 @@ function StoreCheckoutModalContent({
                   onClick={() => {
                     const id = `NT-CRD-${Date.now().toString().slice(-6)}`;
                     setHumanConfirmedOrderId(id);
-                    onHumanPaySuccess(driver.items, "card");
+                    onHumanPaySuccess(driver.items, "card", driver.source, id);
                   }}
                   className="inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#09090B] px-4 py-2.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
                 >
-                  <CreditCard className="h-3.5 w-3.5" />
+                  <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
                   Pay with Card
                 </button>
               </div>

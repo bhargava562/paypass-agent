@@ -7,40 +7,52 @@ import {
   ColDef,
   ICellRendererParams,
   ModuleRegistry,
-  colorSchemeDark,
+  colorSchemeLight,
   themeQuartz,
 } from "ag-grid-community";
+import { ExternalLink } from "lucide-react";
 import { AuditTransaction } from "@/data/catalog";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-const darkTvGridTheme = themeQuartz.withPart(colorSchemeDark).withParams({
-  backgroundColor: "#090f1e",
-  foregroundColor: "#e2e8f0",
-  headerBackgroundColor: "#0f172a",
-  borderColor: "#1e293b",
-  rowHoverColor: "#16223a",
-  fontSize: 12,
-});
+const cleanControlPlaneGridTheme = themeQuartz
+  .withPart(colorSchemeLight)
+  .withParams({
+    backgroundColor: "#FFFFFF",
+    foregroundColor: "#09090B",
+    headerBackgroundColor: "#FAFAFA",
+    borderColor: "#E4E4E7",
+    rowHoverColor: "#F4F4F5",
+    fontSize: 12,
+  });
 
 interface AuditLedgerGridProps {
   transactions: AuditTransaction[];
+}
+
+function isRealPayPalOrderId(orderId: string): boolean {
+  return (
+    !orderId.startsWith("SBX-GP-") &&
+    !orderId.startsWith("NT-HUMAN-") &&
+    !orderId.startsWith("NT-PAY-") &&
+    !orderId.startsWith("NT-CRD-")
+  );
 }
 
 function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const mode = params.value as AuditTransaction["mode"] | undefined;
   if (mode === "ghostpass") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/40 bg-sky-500/15 px-2 py-0.5 text-[11px] font-semibold text-sky-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-sky-400" />
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0070E0]/30 bg-[#0070E0]/10 px-2 py-0.5 text-[11px] font-semibold text-[#003087]">
+        <span className="h-1.5 w-1.5 rounded-full bg-[#0070E0]" />
         GhostPass
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-300">
-      <span className="h-1.5 w-1.5 rounded-full bg-slate-400" />
-      Standard Bot
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
+      <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
+      Unverified Bot
     </span>
   );
 }
@@ -48,21 +60,21 @@ function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
 function VerdictCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const verdict = params.value as AuditTransaction["verdict"] | undefined;
   const styles: Record<string, string> = {
-    APPROVED: "border-emerald-500/40 bg-emerald-500/15 text-emerald-300",
-    BLOCKED: "border-rose-500/40 bg-rose-500/15 text-rose-300",
-    "403_REJECTED": "border-rose-500/40 bg-rose-500/15 text-rose-300",
-    NEEDS_APPROVAL: "border-amber-500/40 bg-amber-500/15 text-amber-300",
+    APPROVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    BLOCKED: "border-rose-200 bg-rose-50 text-rose-800",
+    "403_REJECTED": "border-rose-200 bg-rose-50 text-rose-800",
+    NEEDS_APPROVAL: "border-amber-200 bg-amber-50 text-amber-800",
   };
   const labels: Record<string, string> = {
-    APPROVED: "APPROVED ✓",
-    BLOCKED: "THREAT BLOCKED",
+    APPROVED: "AUTHORIZED",
+    BLOCKED: "SCAM BLOCKED",
     "403_REJECTED": "403 BOT BLOCK",
-    NEEDS_APPROVAL: "NEEDS TAP",
+    NEEDS_APPROVAL: "NEEDS APPROVAL",
   };
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
-        styles[verdict ?? ""] ?? "border-slate-600 bg-slate-800 text-slate-300"
+        styles[verdict ?? ""] ?? "border-zinc-200 bg-zinc-100 text-zinc-700"
       }`}
     >
       {labels[verdict ?? ""] ?? verdict}
@@ -77,12 +89,38 @@ function PiiCellRenderer(params: ICellRendererParams<AuditTransaction>) {
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold ${
         safe
-          ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-300"
-          : "border-rose-500/40 bg-rose-500/15 text-rose-300"
+          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+          : "border-rose-200 bg-rose-50 text-rose-700"
       }`}
     >
       {pct}% PII
     </span>
+  );
+}
+
+function PayPalOrderCellRenderer(params: ICellRendererParams<AuditTransaction>) {
+  const orderId = params.value as string | null | undefined;
+  if (!orderId) {
+    return <span className="font-mono text-xs text-zinc-500">— ($0 Moved)</span>;
+  }
+  if (!isRealPayPalOrderId(orderId)) {
+    return (
+      <span className="font-mono text-xs font-semibold text-zinc-700">
+        {orderId} (Sim)
+      </span>
+    );
+  }
+  return (
+    <a
+      href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(orderId)}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-[#005BB5] hover:underline"
+    >
+      <span>{orderId}</span>
+      <ExternalLink className="h-3 w-3" aria-hidden="true" />
+      <span className="sr-only">(opens PayPal Sandbox in new tab)</span>
+    </a>
   );
 }
 
@@ -92,7 +130,7 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
       {
         headerName: "Time (UTC)",
         field: "timestamp",
-        width: 115,
+        width: 110,
         valueFormatter: (p) => {
           if (!p.value) return "";
           const d = new Date(String(p.value));
@@ -108,15 +146,15 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
         },
       },
       {
-        headerName: "Mode",
+        headerName: "Agent Mode",
         field: "mode",
-        width: 135,
+        width: 145,
         cellRenderer: ModeCellRenderer,
       },
       {
         headerName: "Requested Item",
         field: "requestedProductName",
-        minWidth: 200,
+        minWidth: 210,
         flex: 1,
       },
       {
@@ -126,9 +164,9 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
         valueFormatter: (p) => `$${Number(p.value ?? 0).toFixed(2)}`,
       },
       {
-        headerName: "Verdict",
+        headerName: "Status",
         field: "verdict",
-        width: 145,
+        width: 150,
         cellRenderer: VerdictCellRenderer,
       },
       {
@@ -144,16 +182,17 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
         cellRenderer: PiiCellRenderer,
       },
       {
-        headerName: "PayPal Order ID",
+        headerName: "PayPal Sandbox Order ID",
         field: "paypalOrderId",
-        width: 175,
-        valueFormatter: (p) => (p.value ? String(p.value) : "— ($0 Moved)"),
+        width: 195,
+        cellRenderer: PayPalOrderCellRenderer,
       },
       {
-        headerName: "Gatekeeper / Store Reason",
+        headerName: "Authorization & Audit Reason",
         field: "reason",
-        minWidth: 260,
-        flex: 1.4,
+        minWidth: 270,
+        flex: 1.5,
+        tooltipField: "reason",
       },
     ],
     []
@@ -170,28 +209,33 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
 
   if (transactions.length === 0) {
     return (
-      <div className="flex h-[320px] flex-col items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 text-center">
-        <p className="text-sm font-medium text-slate-300">
-          No audit events recorded yet.
+      <div className="flex h-[260px] flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/70 text-center">
+        <p className="text-sm font-semibold text-zinc-800">
+          No audit events recorded yet
         </p>
-        <p className="mt-1 text-xs text-slate-500">
-          Run any scenario in the AI Shopping Bar below to watch live GhostPass
-          telemetry populate here.
+        <p className="mt-1 max-w-md text-xs text-zinc-500">
+          Run any scenario in the Agent Sandbox Runner above to inspect live
+          authorization checks, blocked injections, and PayPal Sandbox Order IDs.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="h-[340px] w-full overflow-hidden rounded-2xl border border-slate-800">
+    <div
+      role="region"
+      aria-label="Compliance and Audit Ledger Table"
+      className="h-[340px] w-full overflow-hidden rounded-2xl border border-zinc-200"
+    >
       <AgGridReact<AuditTransaction>
-        theme={darkTvGridTheme}
+        theme={cleanControlPlaneGridTheme}
         rowData={transactions}
         columnDefs={columnDefs}
         defaultColDef={defaultColDef}
         animateRows={true}
         pagination={true}
         paginationPageSize={8}
+        paginationPageSizeSelector={[8, 20, 50]}
         getRowId={(params) => params.data.id}
       />
     </div>

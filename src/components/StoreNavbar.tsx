@@ -1,8 +1,17 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Search, ShoppingBag, Store, Trash2 } from "lucide-react";
 import {
+  CheckCircle2,
+  ExternalLink,
+  Package,
+  Search,
+  ShoppingBag,
+  Store,
+  Trash2,
+} from "lucide-react";
+import {
+  AuditTransaction,
   Product,
   ProductCategory,
   STORE_CATEGORIES,
@@ -17,6 +26,16 @@ interface StoreNavbarProps {
   onRemoveFromCart: (index: number) => void;
   onClearCart: () => void;
   onOpenCartCheckout: () => void;
+  merchantOrders: AuditTransaction[];
+}
+
+function isRealPayPalOrderId(orderId: string): boolean {
+  return (
+    !orderId.startsWith("SBX-GP-") &&
+    !orderId.startsWith("NT-HUMAN-") &&
+    !orderId.startsWith("NT-PAY-") &&
+    !orderId.startsWith("NT-CRD-")
+  );
 }
 
 export function StoreNavbar({
@@ -28,18 +47,28 @@ export function StoreNavbar({
   onRemoveFromCart,
   onClearCart,
   onOpenCartCheckout,
+  merchantOrders = [],
 }: StoreNavbarProps) {
   const [cartOpen, setCartOpen] = useState(false);
+  const [ordersOpen, setOrdersOpen] = useState(false);
   const cartRef = useRef<HTMLDivElement | null>(null);
+  const ordersRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!cartOpen) return;
+    if (!cartOpen && !ordersOpen) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setCartOpen(false);
+      if (e.key === "Escape") {
+        setCartOpen(false);
+        setOrdersOpen(false);
+      }
     }
     function onMouseDown(e: MouseEvent) {
-      if (cartRef.current && !cartRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (cartRef.current && !cartRef.current.contains(target)) {
         setCartOpen(false);
+      }
+      if (ordersRef.current && !ordersRef.current.contains(target)) {
+        setOrdersOpen(false);
       }
     }
     window.addEventListener("keydown", onKeyDown);
@@ -48,12 +77,16 @@ export function StoreNavbar({
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("mousedown", onMouseDown);
     };
-  }, [cartOpen]);
+  }, [cartOpen, ordersOpen]);
 
   const cartTotal = cartItems.reduce((sum, item) => sum + item.price, 0);
 
   return (
-    <header className="sticky top-[41px] z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md">
+    <div
+      role="region"
+      aria-label="NovaTech Store navigation"
+      className="z-25 border-b border-zinc-200 bg-white/95 backdrop-blur-md sm:sticky sm:top-[57px]"
+    >
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
         {/* Left: Pure Merchant Brand + Category Links */}
         <div className="flex items-center gap-7">
@@ -63,7 +96,7 @@ export function StoreNavbar({
             className="flex cursor-pointer items-center gap-2.5 text-left"
           >
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#09090B] text-white">
-              <Store className="h-4 w-4" />
+              <Store className="h-4 w-4" aria-hidden="true" />
             </div>
             <span className="font-display text-lg font-bold tracking-tight text-[#09090B]">
               NovaTech
@@ -80,6 +113,7 @@ export function StoreNavbar({
                 <button
                   key={category}
                   type="button"
+                  aria-pressed={active}
                   onClick={() => onSelectCategory(category)}
                   className={`cursor-pointer rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
                     active
@@ -94,10 +128,13 @@ export function StoreNavbar({
           </nav>
         </div>
 
-        {/* Right: Real Store Search + Shopping Cart */}
-        <div className="flex flex-1 items-center justify-end gap-3">
+        {/* Right: Store Search + Merchant Orders + Shopping Cart */}
+        <div className="flex flex-1 items-center justify-end gap-2.5">
           <div className="relative hidden w-full max-w-xs sm:block">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+              aria-hidden="true"
+            />
             <input
               type="text"
               aria-label="Search NovaTech store"
@@ -108,20 +145,116 @@ export function StoreNavbar({
             />
           </div>
 
+          {/* Merchant Order History Popover */}
+          <div ref={ordersRef} className="relative">
+            <button
+              type="button"
+              aria-expanded={ordersOpen}
+              aria-label={`NovaTech Orders (${merchantOrders.length})`}
+              onClick={() => {
+                setCartOpen(false);
+                setOrdersOpen((prev) => !prev);
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#09090B] transition hover:border-zinc-300 hover:bg-zinc-50"
+            >
+              <Package className="h-3.5 w-3.5 text-zinc-700" aria-hidden="true" />
+              <span className="hidden sm:inline">Orders</span>
+              <span className="font-mono">({merchantOrders.length})</span>
+            </button>
+
+            {ordersOpen && (
+              <div
+                role="dialog"
+                aria-label="NovaTech Order Fulfillment"
+                className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl sm:w-96"
+              >
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-[#09090B]">
+                    NovaTech Order Fulfillment ({merchantOrders.length})
+                  </h3>
+                  <span className="text-[11px] font-medium text-emerald-700">
+                    PayPal Verified
+                  </span>
+                </div>
+
+                {merchantOrders.length === 0 ? (
+                  <p className="py-5 text-center text-xs text-zinc-500">
+                    No settled orders yet. Complete a purchase manually or via
+                    the GhostPass Control Plane.
+                  </p>
+                ) : (
+                  <ul className="max-h-64 space-y-2.5 overflow-y-auto">
+                    {merchantOrders.map((order) => (
+                      <li
+                        key={order.id}
+                        className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-semibold text-[#09090B]">
+                            {order.requestedProductName}
+                          </span>
+                          <span className="font-mono font-bold text-[#09090B]">
+                            ${order.totalAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between text-[11px] text-zinc-600">
+                          <span className="inline-flex items-center gap-1 text-emerald-700">
+                            <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                            {order.id.startsWith("tx-human-")
+                              ? "Direct Customer Checkout"
+                              : "Shipping Relayed by PayPal"}
+                          </span>
+                          {order.paypalOrderId &&
+                            (isRealPayPalOrderId(order.paypalOrderId) ? (
+                              <a
+                                href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(order.paypalOrderId)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 font-mono font-semibold text-[#005BB5] hover:underline"
+                              >
+                                {order.paypalOrderId}
+                                <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                                <span className="sr-only">
+                                  (opens in new tab)
+                                </span>
+                              </a>
+                            ) : (
+                              <span className="font-mono font-semibold text-zinc-700">
+                                {order.paypalOrderId}
+                              </span>
+                            ))}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Shopping Cart */}
           <div ref={cartRef} className="relative">
             <button
               type="button"
               aria-expanded={cartOpen}
-              onClick={() => setCartOpen((prev) => !prev)}
+              aria-label={`Shopping Cart (${cartItems.length})`}
+              onClick={() => {
+                setOrdersOpen(false);
+                setCartOpen((prev) => !prev);
+              }}
               className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-zinc-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-[#09090B] transition hover:border-zinc-300 hover:bg-zinc-50"
             >
-              <ShoppingBag className="h-3.5 w-3.5" />
+              <ShoppingBag className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Cart</span>
               <span className="font-mono">({cartItems.length})</span>
             </button>
 
             {cartOpen && (
-              <div className="absolute right-0 top-full z-40 mt-2 w-80 rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl">
+              <div
+                role="dialog"
+                aria-label="Shopping Bag"
+                className="absolute right-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-2xl border border-zinc-200 bg-white p-4 shadow-xl"
+              >
                 <div className="mb-3 flex items-center justify-between">
                   <h3 className="text-sm font-semibold text-[#09090B]">
                     Your Bag ({cartItems.length})
@@ -163,7 +296,7 @@ export function StoreNavbar({
                             onClick={() => onRemoveFromCart(idx)}
                             className="cursor-pointer rounded-lg p-1 text-zinc-400 hover:bg-zinc-200/70 hover:text-rose-600"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                           </button>
                         </li>
                       ))}
@@ -198,7 +331,10 @@ export function StoreNavbar({
       {/* Mobile Search & Category Strip */}
       <div className="flex flex-col gap-2 border-t border-zinc-100 px-4 py-2 lg:hidden">
         <div className="relative sm:hidden">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400" />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-400"
+            aria-hidden="true"
+          />
           <input
             type="text"
             aria-label="Search NovaTech store mobile"
@@ -208,13 +344,17 @@ export function StoreNavbar({
             className="w-full rounded-full border border-zinc-200 bg-[#FAFAFA] py-1.5 pl-8 pr-4 text-xs text-[#09090B] outline-none"
           />
         </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto">
+        <nav
+          aria-label="Store categories mobile"
+          className="flex items-center gap-1.5 overflow-x-auto"
+        >
           {STORE_CATEGORIES.map((category) => {
             const active = selectedCategory === category;
             return (
               <button
                 key={category}
                 type="button"
+                aria-pressed={active}
                 onClick={() => onSelectCategory(category)}
                 className={`shrink-0 cursor-pointer rounded-full px-3 py-1 text-xs font-medium transition ${
                   active
@@ -226,8 +366,8 @@ export function StoreNavbar({
               </button>
             );
           })}
-        </div>
+        </nav>
       </div>
-    </header>
+    </div>
   );
 }

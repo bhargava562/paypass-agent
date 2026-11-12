@@ -92,6 +92,10 @@ export interface SimulationRunState {
   injectedProduct: Product | null;
   proposedTotal: number;
   paypalOrderId: string | null;
+  paypalStatus?: string | null;
+  sandboxActivityUrl?: string | null;
+  approveUrl?: string | null;
+  liveSandbox?: boolean;
   verificationHash?: string | null;
   approvalToken?: string | null;
   shippingRelayLabel: string;

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  consumeMandateToken,
+  resetConsumedTokens,
   signGhostPassMandate,
   signHumanOverrideToken,
   verifyGhostPassMandate,
@@ -98,5 +100,17 @@ describe("mandateSigner (HMAC-SHA256)", () => {
       "prod-headphones-xm5"
     );
     expect(rejectedAsOverride.valid).toBe(false);
+  });
+
+  it("enforces single-use replay protection via consumeMandateToken", () => {
+    resetConsumedTokens();
+    const signature = signGhostPassMandate({
+      productId: "prod-kbd-q1",
+      maxAmount: 48.0,
+      sessionId: "sess_replay",
+    });
+
+    expect(consumeMandateToken(signature)).toBe(true);
+    expect(consumeMandateToken(signature)).toBe(false);
   });
 });

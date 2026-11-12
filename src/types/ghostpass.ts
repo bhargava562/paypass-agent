@@ -101,9 +101,33 @@ export interface CheckoutRequest {
   auditEventId?: string;
 }
 
+export interface PayPalSettleRequest {
+  productId: string;
+  productName?: string;
+  amount: number;
+  sessionId?: string;
+  verificationHash?: string;
+  ghostPassHeader?: string;
+  humanOverrideToken?: string;
+  auditEventId?: string;
+  prompt?: string;
+}
+
+export interface PayPalSettleResult {
+  paypalOrderId: string;
+  paypalStatus: "CREATED" | "APPROVED" | "PAYER_ACTION_REQUIRED" | "COMPLETED" | "SIMULATED_SANDBOX";
+  amount: number;
+  currency: "USD";
+  sandboxActivityUrl: string;
+  approveUrl: string | null;
+  liveSandbox: boolean;
+  shippingRelay: string;
+}
+
 export interface CheckoutResponse {
   status:
     | "APPROVED_BY_MERCHANT"
+    | "SETTLED_VIA_PAYPAL"
     | "BOT_SCRAPER_BLOCKED"
     | "HUMAN_ORDER_CONFIRMED";
   httpStatus: 200 | 403;
@@ -112,6 +136,11 @@ export interface CheckoutResponse {
   verificationHash?: string;
   readyForPayPalCapture?: boolean;
   receiptToken?: string;
+  paypalOrderId?: string | null;
+  paypalStatus?: PayPalSettleResult["paypalStatus"];
+  sandboxActivityUrl?: string | null;
+  approveUrl?: string | null;
+  liveSandbox?: boolean;
   piiExposedPct: number;
   error?: string;
   code?: string;
