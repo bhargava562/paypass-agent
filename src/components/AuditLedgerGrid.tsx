@@ -21,11 +21,15 @@ const compactFintechGridTheme = themeQuartz
     backgroundColor: "#FFFFFF",
     foregroundColor: "#09090B",
     headerBackgroundColor: "#FAFAFA",
+    headerTextColor: "#18181B",
+    headerFontSize: 12,
+    headerFontWeight: 700,
     borderColor: "#E4E4E7",
     rowHoverColor: "#F4F4F5",
+    cellHorizontalPadding: 14,
     fontSize: 12,
-    rowHeight: 36,
-    headerHeight: 34,
+    rowHeight: 38,
+    headerHeight: 36,
   });
 
 interface AuditLedgerGridProps {
@@ -45,17 +49,21 @@ function ModeCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const mode = params.value as AuditTransaction["mode"] | undefined;
   if (mode === "ghostpass") {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#0070E0]/30 bg-[#0070E0]/10 px-2 py-0.5 text-[11px] font-semibold text-[#003087]">
-        <span className="h-1.5 w-1.5 rounded-full bg-[#0070E0]" />
-        PayPal Guardrail
-      </span>
+      <div className="flex h-full items-center">
+        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[#0070E0]/30 bg-[#0070E0]/10 px-2.5 py-1 text-[11px] font-semibold leading-none text-[#003087]">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0070E0]" />
+          PayPal Guardrail
+        </span>
+      </div>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-300 bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700">
-      <span className="h-1.5 w-1.5 rounded-full bg-zinc-400" />
-      Unverified Agent
-    </span>
+    <div className="flex h-full items-center">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-zinc-300 bg-zinc-100 px-2.5 py-1 text-[11px] font-medium leading-none text-zinc-700">
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-500" />
+        Unverified Agent
+      </span>
+    </div>
   );
 }
 
@@ -74,13 +82,15 @@ function VerdictCellRenderer(params: ICellRendererParams<AuditTransaction>) {
     NEEDS_APPROVAL: "HITL REQUIRED",
   };
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold tracking-tight ${
-        styles[verdict ?? ""] ?? "border-zinc-200 bg-zinc-100 text-zinc-700"
-      }`}
-    >
-      {labels[verdict ?? ""] ?? verdict}
-    </span>
+    <div className="flex h-full items-center">
+      <span
+        className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold leading-none tracking-tight ${
+          styles[verdict ?? ""] ?? "border-zinc-200 bg-zinc-100 text-zinc-700"
+        }`}
+      >
+        {labels[verdict ?? ""] ?? verdict}
+      </span>
+    </div>
   );
 }
 
@@ -88,41 +98,51 @@ function PiiCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const pct = Number(params.value ?? 0);
   const safe = pct === 0;
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[11px] font-semibold ${
-        safe
-          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-          : "border-rose-200 bg-rose-50 text-rose-700"
-      }`}
-    >
-      {pct}%
-    </span>
+    <div className="flex h-full items-center">
+      <span
+        className={`inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 font-mono text-[11px] font-semibold leading-none ${
+          safe
+            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+            : "border-rose-200 bg-rose-50 text-rose-700"
+        }`}
+      >
+        {pct}%
+      </span>
+    </div>
   );
 }
 
 function PayPalOrderCellRenderer(params: ICellRendererParams<AuditTransaction>) {
   const orderId = params.value as string | null | undefined;
   if (!orderId) {
-    return <span className="font-mono text-xs text-zinc-400">—</span>;
+    return (
+      <div className="flex h-full items-center">
+        <span className="font-mono text-xs text-zinc-500">—</span>
+      </div>
+    );
   }
   if (!isRealPayPalOrderId(orderId)) {
     return (
-      <span className="font-mono text-xs font-semibold text-zinc-700">
-        {orderId}
-      </span>
+      <div className="flex h-full items-center">
+        <span className="whitespace-nowrap font-mono text-xs font-semibold text-zinc-700">
+          {orderId}
+        </span>
+      </div>
     );
   }
   return (
-    <a
-      href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(orderId)}`}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 font-mono text-xs font-semibold text-[#005BB5] hover:underline"
-    >
-      <span>{orderId}</span>
-      <ExternalLink className="h-3 w-3" aria-hidden="true" />
-      <span className="sr-only">(opens PayPal Sandbox in new tab)</span>
-    </a>
+    <div className="flex h-full items-center">
+      <a
+        href={`https://www.sandbox.paypal.com/activity/payment/${encodeURIComponent(orderId)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded font-mono text-xs font-semibold text-[#005BB5] transition-colors duration-200 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0]"
+      >
+        <span>{orderId}</span>
+        <ExternalLink className="h-3 w-3 shrink-0" aria-hidden="true" />
+        <span className="sr-only">(opens PayPal Sandbox in new tab)</span>
+      </a>
+    </div>
   );
 }
 
@@ -133,7 +153,7 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
         headerName: "Timestamp",
         field: "timestamp",
         minWidth: 96,
-        flex: 0.75,
+        flex: 0.7,
         cellClass: "font-mono text-zinc-600",
         valueFormatter: (p) => {
           if (!p.value) return "";
@@ -152,14 +172,14 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
       {
         headerName: "Mode",
         field: "mode",
-        minWidth: 130,
-        flex: 1,
+        minWidth: 160,
+        flex: 1.05,
         cellRenderer: ModeCellRenderer,
       },
       {
         headerName: "Merchant & Item",
         field: "requestedProductName",
-        minWidth: 200,
+        minWidth: 210,
         flex: 1.85,
         tooltipField: "reason",
         valueFormatter: (p) => {
@@ -173,30 +193,30 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
       {
         headerName: "Amount",
         field: "totalAmount",
-        minWidth: 88,
-        flex: 0.72,
+        minWidth: 92,
+        flex: 0.7,
         cellClass: "font-mono font-semibold text-[#09090B]",
         valueFormatter: (p) => `$${Number(p.value ?? 0).toFixed(2)}`,
       },
       {
         headerName: "Verdict",
         field: "verdict",
-        minWidth: 136,
-        flex: 1.05,
+        minWidth: 168,
+        flex: 1.15,
         cellRenderer: VerdictCellRenderer,
       },
       {
         headerName: "PII Leaked",
         field: "piiExposedPct",
-        minWidth: 90,
-        flex: 0.72,
+        minWidth: 96,
+        flex: 0.7,
         cellRenderer: PiiCellRenderer,
       },
       {
         headerName: "PayPal Order ID",
         field: "paypalOrderId",
-        minWidth: 195,
-        flex: 1.5,
+        minWidth: 185,
+        flex: 1.35,
         cellRenderer: PayPalOrderCellRenderer,
       },
     ],
@@ -214,8 +234,8 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
 
   if (transactions.length === 0) {
     return (
-      <div className="flex h-[280px] items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50/70">
-        <span className="font-mono text-xs text-zinc-500">
+      <div className="flex h-[280px] items-center justify-center rounded-xl border border-dashed border-[#E4E4E7] bg-zinc-50/70">
+        <span className="font-mono text-xs text-zinc-600">
           No transactions yet
         </span>
       </div>
@@ -226,7 +246,7 @@ export function AuditLedgerGrid({ transactions }: AuditLedgerGridProps) {
     <div
       role="region"
       aria-label="Transaction Ledger"
-      className="h-[280px] w-full overflow-hidden rounded-xl border border-zinc-200"
+      className="h-[280px] w-full overflow-hidden rounded-xl border border-[#E4E4E7]"
     >
       <AgGridReact<AuditTransaction>
         theme={compactFintechGridTheme}

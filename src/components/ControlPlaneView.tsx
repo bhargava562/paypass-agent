@@ -472,38 +472,40 @@ export function ControlPlaneView({
       {/* ZONE 1: Top Mandate & Live Execution Bar */}
       <section
         aria-label="PayPal Mandate Vault and Execution Bar"
-        className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+        className="rounded-2xl border border-[#E4E4E7] bg-white p-4 shadow-xs sm:p-5"
       >
         {/* Row 1: PayPal Mandate Vault */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-3">
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-[#0B1120] px-3 py-1.5 font-mono text-[11px] text-zinc-200">
-            <span className="font-semibold text-[#38BDF8]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-100 pb-4">
+          <div className="flex min-h-10 flex-wrap items-center gap-2 rounded-xl border border-zinc-800 bg-[#0B1120] px-4 py-1.5 font-mono text-xs text-zinc-200 lg:h-10 lg:flex-nowrap lg:py-0">
+            <span className="whitespace-nowrap font-semibold text-[#38BDF8]">
               PayPal Vault: {sandboxBuyerLabel}
             </span>
             <span aria-hidden="true" className="text-zinc-600">
               ·
             </span>
-            <span>Max/Tx: ${mandate.maxPerTransaction.toFixed(2)}</span>
+            <span className="whitespace-nowrap">
+              Max/Tx: ${mandate.maxPerTransaction.toFixed(2)}
+            </span>
             <span aria-hidden="true" className="text-zinc-600">
               ·
             </span>
-            <span className="font-semibold text-emerald-300">
+            <span className="whitespace-nowrap font-semibold text-emerald-300">
               Daily Left: ${dailyRemaining.toFixed(2)}
             </span>
-            <span aria-hidden="true" className="hidden text-zinc-600 lg:inline">
+            <span aria-hidden="true" className="hidden text-zinc-600 xl:inline">
               ·
             </span>
-            <span className="hidden max-w-xs truncate text-zinc-400 lg:inline">
+            <span className="hidden max-w-xs truncate text-zinc-400 xl:inline">
               Rule: &ldquo;{mandate.ruleText}&rdquo;
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               disabled={isRunning || isSavingRule}
               onClick={openRuleEditor}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#09090B] transition hover:bg-zinc-50 disabled:opacity-50"
+              className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-[#E4E4E7] bg-white px-4 text-xs font-semibold text-[#09090B] transition-colors duration-200 hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Edit3 className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Edit Mandate</span>
@@ -514,7 +516,7 @@ export function ControlPlaneView({
                 setConfigTab("mcp");
                 setMcpModalOpen(true);
               }}
-              className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl bg-[#0B1120] px-3 py-1.5 font-mono text-xs font-semibold text-white transition hover:bg-zinc-800"
+              className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0B1120] px-4 font-mono text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
             >
               <Code2 className="h-3.5 w-3.5 text-[#38BDF8]" aria-hidden="true" />
               <span>MCP Config</span>
@@ -523,18 +525,18 @@ export function ControlPlaneView({
         </div>
 
         {/* Row 2: Mode Switch + Live Input Box + Execute + Custom Payload Toggle */}
-        <div className="mt-3 flex flex-col gap-2.5 lg:flex-row lg:items-center">
+        <div className="mt-4 flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-4">
           <div
             role="group"
             aria-label="Execution mode"
-            className="inline-flex shrink-0 rounded-xl border border-zinc-200 bg-zinc-100 p-0.5"
+            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl border border-[#E4E4E7] bg-zinc-100 p-1"
           >
             <button
               type="button"
               disabled={isRunning}
               aria-pressed={isGhostPass}
               onClick={() => onModeChange("ghostpass")}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+              className={`inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] disabled:cursor-not-allowed disabled:opacity-50 lg:flex-initial ${
                 isGhostPass
                   ? "bg-[#0070E0] text-white shadow-xs"
                   : "text-zinc-600 hover:text-[#09090B]"
@@ -549,7 +551,7 @@ export function ControlPlaneView({
               disabled={isRunning}
               aria-pressed={!isGhostPass}
               onClick={() => onModeChange("standard_bot")}
-              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition disabled:opacity-50 ${
+              className={`inline-flex h-8 flex-1 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] disabled:cursor-not-allowed disabled:opacity-50 lg:flex-initial ${
                 !isGhostPass
                   ? "bg-white text-rose-700 shadow-xs"
                   : "text-zinc-600 hover:text-[#09090B]"
@@ -566,7 +568,7 @@ export function ControlPlaneView({
               if (!prompt.trim() || isRunning || isSettlingOverride) return;
               onRunAgent(prompt);
             }}
-            className="flex flex-1 items-center gap-2"
+            className="flex flex-1 flex-wrap items-center gap-2 sm:flex-nowrap"
           >
             <input
               type="text"
@@ -574,12 +576,12 @@ export function ControlPlaneView({
               value={prompt}
               onChange={(e) => onPromptChange(e.target.value)}
               placeholder="Enter any purchase request or custom item & price..."
-              className="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-[#FAFAFA] px-3.5 py-2 text-xs text-[#09090B] outline-none placeholder:text-zinc-400 focus:border-[#0070E0] focus:bg-white"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] px-4 text-xs text-[#09090B] outline-none transition-colors duration-200 placeholder:text-zinc-500 focus:border-[#0070E0] focus:bg-white focus:ring-2 focus:ring-[#0070E0]/20"
             />
             <button
               type="submit"
               disabled={isRunning || isSettlingOverride || !prompt.trim()}
-              className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-xl bg-[#0070E0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0070E0] px-4 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#003087] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Play className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{isRunning ? "Running..." : "Execute"}</span>
@@ -588,10 +590,10 @@ export function ControlPlaneView({
               type="button"
               aria-expanded={customOpen}
               onClick={() => setCustomOpen((prev) => !prev)}
-              className={`inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+              className={`inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-xl border px-4 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 ${
                 customOpen
                   ? "border-[#0070E0] bg-sky-50 text-[#005BB5]"
-                  : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
+                  : "border-[#E4E4E7] bg-white text-zinc-700 hover:border-zinc-300 hover:bg-zinc-50"
               }`}
             >
               {customOpen ? (
@@ -608,12 +610,12 @@ export function ControlPlaneView({
         {customOpen && (
           <form
             onSubmit={handleRunCustomPayload}
-            className="mt-3 grid grid-cols-1 gap-2.5 rounded-xl border border-sky-200 bg-sky-50/50 p-3 sm:grid-cols-12"
+            className="mt-4 grid grid-cols-1 gap-4 rounded-xl border border-sky-200 bg-sky-50/50 p-4 sm:grid-cols-12"
           >
             <div className="sm:col-span-4">
               <label
                 htmlFor="custom-item-title"
-                className="mb-1 block font-mono text-[10px] font-semibold text-zinc-600"
+                className="mb-1.5 block font-mono text-[11px] font-semibold text-zinc-700"
               >
                 Item Name
               </label>
@@ -623,14 +625,14 @@ export function ControlPlaneView({
                 required
                 value={customTitle}
                 onChange={(e) => setCustomTitle(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                className="h-10 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
               />
             </div>
 
             <div className="sm:col-span-2">
               <label
                 htmlFor="custom-item-price"
-                className="mb-1 block font-mono text-[10px] font-semibold text-zinc-600"
+                className="mb-1.5 block font-mono text-[11px] font-semibold text-zinc-700"
               >
                 Price ($)
               </label>
@@ -643,14 +645,14 @@ export function ControlPlaneView({
                 required
                 value={customPrice}
                 onChange={(e) => setCustomPrice(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 font-mono text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                className="h-10 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 font-mono text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
               />
             </div>
 
             <div className="sm:col-span-3">
               <label
                 htmlFor="custom-item-category"
-                className="mb-1 block font-mono text-[10px] font-semibold text-zinc-600"
+                className="mb-1.5 block font-mono text-[11px] font-semibold text-zinc-700"
               >
                 Category
               </label>
@@ -658,7 +660,7 @@ export function ControlPlaneView({
                 id="custom-item-category"
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                className="h-10 w-full cursor-pointer rounded-xl border border-[#E4E4E7] bg-white px-3 text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
               >
                 {CUSTOM_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -671,7 +673,7 @@ export function ControlPlaneView({
             <div className="sm:col-span-3">
               <label
                 htmlFor="custom-item-merchant"
-                className="mb-1 block font-mono text-[10px] font-semibold text-zinc-600"
+                className="mb-1.5 block font-mono text-[11px] font-semibold text-zinc-700"
               >
                 Merchant
               </label>
@@ -680,18 +682,18 @@ export function ControlPlaneView({
                 type="text"
                 value={customMerchant}
                 onChange={(e) => setCustomMerchant(e.target.value)}
-                className="w-full rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                className="h-10 w-full rounded-xl border border-[#E4E4E7] bg-white px-3 text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
               />
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-12">
               <div className="flex flex-1 flex-wrap items-center gap-2">
-                <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-rose-800">
+                <label className="inline-flex h-10 cursor-pointer items-center gap-2 text-xs font-semibold text-rose-800">
                   <input
                     type="checkbox"
                     checked={customInjectEnabled}
                     onChange={(e) => setCustomInjectEnabled(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded accent-rose-600"
+                    className="h-4 w-4 cursor-pointer rounded accent-rose-600"
                   />
                   Simulate Malicious Store Injection
                 </label>
@@ -701,7 +703,7 @@ export function ControlPlaneView({
                     aria-label="Adversarial store injection payload"
                     value={customInjectionText}
                     onChange={(e) => setCustomInjectionText(e.target.value)}
-                    className="min-w-[240px] flex-1 rounded-lg border border-rose-300 bg-white px-2.5 py-1 font-mono text-[11px] text-rose-900 outline-none focus:border-rose-500"
+                    className="h-10 min-w-[240px] flex-1 rounded-xl border border-rose-300 bg-white px-3 font-mono text-xs text-rose-900 outline-none transition-colors duration-200 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20"
                   />
                 )}
               </div>
@@ -709,9 +711,9 @@ export function ControlPlaneView({
               <button
                 type="submit"
                 disabled={isRunning || isSettlingOverride}
-                className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-[#0B1120] px-3.5 py-1.5 font-mono text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0B1120] px-4 font-mono text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <Play className="h-3 w-3 text-[#38BDF8]" aria-hidden="true" />
+                <Play className="h-3.5 w-3.5 text-[#38BDF8]" aria-hidden="true" />
                 Execute Custom Payload
               </button>
             </div>
@@ -719,7 +721,7 @@ export function ControlPlaneView({
         )}
 
         {/* Row 3: 3 One-Click Presets */}
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           {PRESET_SCENARIOS.map((preset) => {
             const toneClass =
               preset.tone === "emerald"
@@ -737,7 +739,7 @@ export function ControlPlaneView({
                   onPromptChange(preset.prompt);
                   onRunAgent(preset.prompt);
                 }}
-                className={`cursor-pointer rounded-full border px-3 py-1 font-mono text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
+                className={`inline-flex h-10 cursor-pointer items-center rounded-xl border px-3.5 font-mono text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50 ${toneClass}`}
               >
                 {preset.label}
               </button>
@@ -746,7 +748,7 @@ export function ControlPlaneView({
         </div>
       </section>
 
-      {/* ZONE 2: Clean Horizontal Pipeline Diff (Uniform h-[270px] cards, zero scrollbars) */}
+      {/* ZONE 2: Clean Horizontal Pipeline Diff (Uniform h-[296px] cards on lg+, zero horizontal scrollbars) */}
       <div
         aria-label="3-Stage Pipeline Diff"
         className="grid grid-cols-1 gap-4 lg:grid-cols-3"
@@ -754,16 +756,16 @@ export function ControlPlaneView({
         {/* CARD 1: 1 · INPUT: Agent Context */}
         <section
           aria-label="1. Input Agent Context"
-          className="flex h-[270px] flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+          className="flex min-h-[296px] flex-col rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-xs lg:h-[296px]"
         >
-          <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2">
-            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+          <div className="mb-3 flex min-h-[28px] shrink-0 items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="truncate font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
               1 · INPUT: Agent Context
             </h2>
             <span
-              className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold ${
                 isIdle
-                  ? "border-zinc-200 bg-zinc-100 text-zinc-600"
+                  ? "border-zinc-200 bg-zinc-100 text-zinc-700"
                   : simRawPii
                   ? "border-rose-200 bg-rose-50 text-rose-800"
                   : "border-emerald-200 bg-emerald-50 text-emerald-800"
@@ -780,7 +782,7 @@ export function ControlPlaneView({
           </div>
 
           <pre
-            className={`min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-all rounded-xl border p-3 font-mono text-[11px] leading-relaxed ${
+            className={`min-h-0 flex-1 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded-xl border p-3.5 font-mono text-xs leading-relaxed ${
               simRawPii
                 ? "border-rose-900/50 bg-[#1A0B10] text-rose-200"
                 : "border-zinc-800 bg-[#0B1120] text-sky-200"
@@ -793,14 +795,14 @@ export function ControlPlaneView({
         {/* CARD 2: 2 · ANALYSIS: Guardrail Verdict */}
         <section
           aria-label="2. Analysis Guardrail Verdict"
-          className="flex h-[270px] flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+          className="flex min-h-[296px] flex-col rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-xs lg:h-[296px]"
         >
-          <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2">
-            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+          <div className="mb-3 flex min-h-[28px] shrink-0 items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="truncate font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
               2 · ANALYSIS: Guardrail Verdict
             </h2>
             <span
-              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
+              className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
                 verdictBadge.tone
               )}`}
             >
@@ -817,10 +819,10 @@ export function ControlPlaneView({
             </span>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
-            <dl className="space-y-1.5 font-mono text-[11px]">
-              <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1">
-                <dt className="text-zinc-500">Risk Score</dt>
+          <div className="flex min-h-0 flex-1 flex-col justify-between gap-2 overflow-y-auto overflow-x-hidden rounded-xl border border-[#E4E4E7] bg-[#FAFAFA] p-3.5 font-mono text-xs leading-relaxed">
+            <dl className="space-y-2">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-200/70 pb-1.5">
+                <dt className="shrink-0 text-zinc-600">Risk Score</dt>
                 <dd
                   className={`font-bold ${
                     simulation.riskScore >= 70
@@ -833,14 +835,14 @@ export function ControlPlaneView({
                   {isIdle ? "0/100" : `${simulation.riskScore}/100`}
                 </dd>
               </div>
-              <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1">
-                <dt className="text-zinc-500">Policy Check</dt>
-                <dd className="truncate font-semibold text-[#09090B]">
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-200/70 pb-1.5">
+                <dt className="shrink-0 text-zinc-600">Policy Check</dt>
+                <dd className="whitespace-pre-wrap break-all text-right font-semibold text-[#09090B]">
                   {policyCheckValue}
                 </dd>
               </div>
-              <div className="flex items-center justify-between gap-2 border-b border-zinc-100 pb-1">
-                <dt className="text-zinc-500">Injection Scan</dt>
+              <div className="flex items-center justify-between gap-2 border-b border-zinc-200/70 pb-1.5">
+                <dt className="shrink-0 text-zinc-600">Injection Scan</dt>
                 <dd
                   className={`font-semibold ${
                     simulation.verdict === "BLOCKED"
@@ -854,15 +856,15 @@ export function ControlPlaneView({
                 </dd>
               </div>
               <div className="flex items-center justify-between gap-2">
-                <dt className="text-zinc-500">HMAC Signature</dt>
-                <dd className="truncate font-semibold text-[#005BB5]">
+                <dt className="shrink-0 text-zinc-600">HMAC Signature</dt>
+                <dd className="whitespace-pre-wrap break-all text-right font-semibold text-[#005BB5]">
                   {hmacSignatureValue}
                 </dd>
               </div>
             </dl>
 
-            {simulation.verdict === "BLOCKED" && (
-              <div className="mt-2 rounded-xl border border-rose-300 bg-rose-50 p-2 font-mono text-[10px] text-rose-900">
+            {simulation.verdict === "BLOCKED" ? (
+              <div className="rounded-lg border border-rose-300 bg-rose-50 p-2.5 font-mono text-xs leading-relaxed text-rose-900 whitespace-pre-wrap break-all">
                 <div className="font-bold text-rose-800">
                   - STRIPPED:{" "}
                   {simulation.injectedProduct
@@ -872,21 +874,28 @@ export function ControlPlaneView({
                     : simulation.gatekeeperNotes[0] ?? "Policy Violation"}
                 </div>
                 {simulation.selectedProduct?.hiddenHtmlMetadata && (
-                  <div className="mt-1 break-all text-rose-700">
+                  <div className="mt-1 text-rose-700">
                     {simulation.selectedProduct.hiddenHtmlMetadata}
                   </div>
                 )}
               </div>
-            )}
+            ) : simulation.verdict !== "NEEDS_APPROVAL" ? (
+              <p className="border-t border-zinc-200/70 pt-2 font-mono text-[11px] leading-relaxed text-zinc-600 whitespace-pre-wrap break-all">
+                {isIdle
+                  ? "Awaiting agent execution or preset trigger."
+                  : simulation.gatekeeperNotes[0] ??
+                    "Deterministic + Gemini 2.5 Flash audit complete."}
+              </p>
+            ) : null}
           </div>
 
           {simulation.verdict === "NEEDS_APPROVAL" && (
-            <div className="mt-2 flex items-center gap-2 border-t border-zinc-100 pt-2">
+            <div className="mt-3 flex shrink-0 items-center gap-2">
               <button
                 type="button"
                 disabled={isSettlingOverride}
                 onClick={onApproveOverride}
-                className="flex-1 cursor-pointer rounded-xl bg-[#0070E0] px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:opacity-50"
+                className="h-10 flex-1 cursor-pointer rounded-xl bg-[#0070E0] px-3 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#003087] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isSettlingOverride
                   ? "Authorizing..."
@@ -896,7 +905,7 @@ export function ControlPlaneView({
                 type="button"
                 disabled={isSettlingOverride}
                 onClick={onRejectOverride}
-                className="cursor-pointer rounded-xl border border-rose-300 bg-white px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
+                className="h-10 shrink-0 cursor-pointer rounded-xl border border-rose-300 bg-white px-4 text-xs font-semibold text-rose-700 transition-colors duration-200 hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Decline
               </button>
@@ -907,14 +916,14 @@ export function ControlPlaneView({
         {/* CARD 3: 3 · OUTPUT: PayPal Orders v2 & Store */}
         <section
           aria-label="3. Output PayPal Orders v2 and Store"
-          className="flex h-[270px] flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+          className="flex min-h-[296px] flex-col rounded-2xl border border-[#E4E4E7] bg-white p-5 shadow-xs lg:h-[296px]"
         >
-          <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-zinc-100 pb-2">
-            <h2 className="font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
+          <div className="mb-3 flex min-h-[28px] shrink-0 items-center justify-between gap-2 border-b border-zinc-100 pb-2.5">
+            <h2 className="truncate font-mono text-xs font-bold uppercase tracking-wide text-[#09090B]">
               3 · OUTPUT: PayPal Orders v2 &amp; Store
             </h2>
             <span
-              className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
+              className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[10px] font-bold ${badgeClass(
                 isIdle
                   ? "idle"
                   : simulation.verdict === "APPROVED"
@@ -928,20 +937,20 @@ export function ControlPlaneView({
             </span>
           </div>
 
-          <pre className="min-h-0 flex-1 overflow-y-auto whitespace-pre-wrap break-all rounded-xl border border-zinc-800 bg-[#0B1120] p-3 font-mono text-[11px] leading-relaxed text-emerald-200">
+          <pre className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden whitespace-pre-wrap break-all rounded-xl border border-zinc-800 bg-[#0B1120] p-3.5 font-mono text-xs leading-relaxed text-emerald-200">
             {JSON.stringify(outputPayloadJson, null, 2)}
           </pre>
 
           {sandboxUrl && (
-            <div className="mt-2 flex items-center justify-between border-t border-zinc-100 pt-2">
-              <span className="truncate font-mono text-[11px] font-semibold text-zinc-700">
+            <div className="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-zinc-100 pt-2.5">
+              <span className="truncate font-mono text-xs font-semibold text-zinc-700">
                 {simulation.paypalOrderId}
               </span>
               <a
                 href={sandboxUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-lg bg-[#0070E0] px-2.5 py-1 font-mono text-[11px] font-semibold text-white transition hover:bg-[#003087]"
+                className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-[#0070E0] px-3 font-mono text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#003087] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
               >
                 <span>Verify on PayPal Sandbox</span>
                 <ExternalLink className="h-3 w-3" aria-hidden="true" />
@@ -954,10 +963,10 @@ export function ControlPlaneView({
       {/* ZONE 3: Full-Width AG Grid Compliance & Audit Ledger */}
       <section
         aria-label="Compliance and Audit Ledger"
-        className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-xs"
+        className="rounded-2xl border border-[#E4E4E7] bg-white p-4 shadow-xs sm:p-5"
       >
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(
               [
                 { id: "all", label: `All (${transactions.length})` },
@@ -971,10 +980,10 @@ export function ControlPlaneView({
                 type="button"
                 aria-pressed={ledgerFilter === tab.id}
                 onClick={() => setLedgerFilter(tab.id)}
-                className={`cursor-pointer rounded-full px-3 py-1 text-[11px] font-semibold transition ${
+                className={`h-8 cursor-pointer rounded-full px-3.5 text-xs font-semibold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 ${
                   ledgerFilter === tab.id
                     ? "bg-[#09090B] text-white"
-                    : "border border-zinc-200 bg-zinc-50 text-zinc-600 hover:bg-zinc-100"
+                    : "border border-[#E4E4E7] bg-zinc-50 text-zinc-700 hover:bg-zinc-100"
                 }`}
               >
                 {tab.label}
@@ -982,14 +991,14 @@ export function ControlPlaneView({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 font-mono text-[11px] font-semibold">
-            <span className="rounded-md bg-zinc-100 px-2 py-0.5 text-zinc-800">
+          <div className="flex flex-wrap items-center gap-2 font-mono text-xs font-semibold">
+            <span className="rounded-lg bg-zinc-100 px-2.5 py-1 text-zinc-800">
               Settled: ${kpis.settledTotal.toFixed(2)}
             </span>
-            <span className="rounded-md bg-rose-50 px-2 py-0.5 text-rose-700">
+            <span className="rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700">
               Blocked: ${kpis.blockedTotal.toFixed(2)}
             </span>
-            <span className="rounded-md bg-emerald-50 px-2 py-0.5 text-emerald-700">
+            <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-700">
               Guardrail PII Leaked: {kpis.piiLeaked}%
             </span>
           </div>
@@ -1141,15 +1150,15 @@ export function ControlPlaneView({
                 type="text"
                 value={draftRule}
                 onChange={(e) => setDraftRule(e.target.value)}
-                className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-4">
               <div>
                 <label
                   htmlFor="modal-max-tx"
-                  className="mb-1 block text-xs font-semibold text-zinc-700"
+                  className="mb-1.5 block text-xs font-semibold text-zinc-700"
                 >
                   Max/Tx ($)
                 </label>
@@ -1160,14 +1169,14 @@ export function ControlPlaneView({
                   max={1000}
                   value={draftMaxTx}
                   onChange={(e) => setDraftMaxTx(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                  className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 font-mono text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="modal-daily-cap"
-                  className="mb-1 block text-xs font-semibold text-zinc-700"
+                  className="mb-1.5 block text-xs font-semibold text-zinc-700"
                 >
                   Daily Limit ($)
                 </label>
@@ -1178,7 +1187,7 @@ export function ControlPlaneView({
                   max={2000}
                   value={draftDaily}
                   onChange={(e) => setDraftDaily(e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 font-mono text-xs text-[#09090B] outline-none focus:border-[#0070E0]"
+                  className="h-10 w-full rounded-xl border border-zinc-300 bg-white px-3 font-mono text-xs text-[#09090B] outline-none transition-colors duration-200 focus:border-[#0070E0] focus:ring-2 focus:ring-[#0070E0]/20"
                 />
               </div>
             </div>
@@ -1189,7 +1198,7 @@ export function ControlPlaneView({
                   type="checkbox"
                   checked={draftBlockGift}
                   onChange={(e) => setDraftBlockGift(e.target.checked)}
-                  className="h-4 w-4 rounded accent-[#0070E0]"
+                  className="h-4 w-4 cursor-pointer rounded accent-[#0070E0]"
                 />
                 Block Gift Cards
               </label>
@@ -1199,7 +1208,7 @@ export function ControlPlaneView({
                   type="checkbox"
                   checked={draftBlockSub}
                   onChange={(e) => setDraftBlockSub(e.target.checked)}
-                  className="h-4 w-4 rounded accent-[#0070E0]"
+                  className="h-4 w-4 cursor-pointer rounded accent-[#0070E0]"
                 />
                 Block Subscriptions
               </label>
@@ -1209,14 +1218,14 @@ export function ControlPlaneView({
               <button
                 type="button"
                 onClick={() => setEditingRule(false)}
-                className="cursor-pointer rounded-xl border border-zinc-200 bg-white px-3.5 py-2 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                className="h-10 cursor-pointer rounded-xl border border-[#E4E4E7] bg-white px-4 text-xs font-semibold text-zinc-700 transition-colors duration-200 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isSavingRule}
-                className="cursor-pointer rounded-xl bg-[#0070E0] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003087] disabled:opacity-50"
+                className="h-10 cursor-pointer rounded-xl bg-[#0070E0] px-4 text-xs font-semibold text-white transition-colors duration-200 hover:bg-[#003087] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1 disabled:opacity-50"
               >
                 {isSavingRule ? "Saving..." : "Save Mandate"}
               </button>

@@ -66,10 +66,10 @@ export function ProductGrid({
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-28 pt-6 sm:px-6">
       {/* Pure Retail Seasonal Banner */}
-      <div className="mb-8 flex flex-col justify-between gap-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:p-8">
+      <div className="mb-8 flex flex-col justify-between gap-6 rounded-3xl border border-[#E4E4E7] bg-white p-6 shadow-xs sm:flex-row sm:items-center sm:p-8">
         <div className="max-w-2xl">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700">
-            <Truck className="h-3.5 w-3.5 text-zinc-900" />
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#E4E4E7] bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-700">
+            <Truck className="h-3.5 w-3.5 text-zinc-900" aria-hidden="true" />
             <span>Free 2-Day Express Shipping on Orders Over $35</span>
           </div>
           <h1 className="font-display text-2xl font-bold tracking-tight text-[#09090B] sm:text-3xl">
@@ -86,12 +86,12 @@ export function ProductGrid({
           <button
             type="button"
             onClick={handleShopNewArrivals}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-[#09090B] px-5 py-2.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
+            className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-full bg-[#09090B] px-5 text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-2"
           >
             <span>Shop New Arrivals</span>
-            <ArrowRight className="h-3.5 w-3.5" />
+            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
           </button>
-          <span className="text-[11px] text-zinc-500">
+          <span className="text-xs text-zinc-600">
             {filteredProducts.length} items in {selectedCategory}
           </span>
         </div>
@@ -103,13 +103,13 @@ export function ProductGrid({
           <p className="text-sm font-semibold text-[#09090B]">
             No products matched &ldquo;{searchQuery}&rdquo;
           </p>
-          <p className="mt-1 text-xs text-zinc-500">
+          <p className="mt-1 text-xs text-zinc-600">
             Clear your search or return to All departments.
           </p>
           <button
             type="button"
             onClick={onResetFilters}
-            className="mt-4 cursor-pointer rounded-full bg-[#09090B] px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800"
+            className="mt-4 h-10 cursor-pointer rounded-full bg-[#09090B] px-5 text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-2"
           >
             Reset Store Filters
           </button>
@@ -125,7 +125,7 @@ export function ProductGrid({
             return (
               <article
                 key={product.id}
-                className={`group flex flex-col justify-between overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${
+                className={`group flex flex-col justify-between overflow-hidden rounded-2xl border bg-white transition-all duration-200 hover:border-zinc-300 hover:shadow-md ${
                   isHighlighted
                     ? "border-[#0070E0] ring-2 ring-[#0070E0]/25 shadow-md"
                     : "border-[#E4E4E7]"
@@ -146,11 +146,11 @@ export function ProductGrid({
                       fill
                       priority={index < 4}
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                      className="object-cover transition-transform duration-300 group-hover:scale-103"
+                      className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                     />
 
                     {product.badge && (
-                      <span className="absolute left-3 top-3 rounded-full border border-white/60 bg-white/92 px-2.5 py-0.5 text-[11px] font-semibold text-[#09090B] shadow-xs backdrop-blur-xs">
+                      <span className="absolute left-3 top-3 rounded-full border border-white/60 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-[#09090B] shadow-xs backdrop-blur-xs">
                         {product.badge}
                       </span>
                     )}
@@ -163,39 +163,45 @@ export function ProductGrid({
                         setInspectedProduct(product);
                         setShowRawDom(false);
                       }}
-                      className="absolute right-3 top-3 inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/40 bg-zinc-950/75 px-2.5 py-1 text-[10px] font-medium text-white opacity-90 backdrop-blur-xs transition hover:bg-zinc-950 group-hover:opacity-100"
+                      className="absolute right-3 top-3 inline-flex cursor-pointer items-center gap-1 rounded-full border border-white/40 bg-zinc-950/80 px-2.5 py-1 text-[11px] font-medium text-white opacity-95 backdrop-blur-xs transition-colors duration-200 hover:bg-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8] group-hover:opacity-100"
                     >
-                      <Eye className="h-3 w-3" />
+                      <Eye className="h-3 w-3" aria-hidden="true" />
                       Details
                     </button>
                   </div>
 
                   {/* Product Details */}
                   <div className="p-4 pb-3">
-                    <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-zinc-500">
+                    <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-zinc-600">
                       <span>{product.brand}</span>
                       <span className="inline-flex items-center gap-1 text-zinc-700">
-                        <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                        <Star
+                          className="h-3 w-3 fill-amber-400 text-amber-400"
+                          aria-hidden="true"
+                        />
                         <span className="font-mono">
                           {product.rating.toFixed(1)}
                         </span>
-                        <span className="text-zinc-400">
+                        <span className="text-zinc-600">
                           ({product.reviewsCount})
                         </span>
                       </span>
                     </div>
 
-                    <h2
-                      onClick={() => {
-                        setInspectedProduct(product);
-                        setShowRawDom(false);
-                      }}
-                      className="line-clamp-2 cursor-pointer font-display text-sm font-semibold leading-snug text-[#09090B] transition-colors group-hover:text-zinc-700"
-                    >
-                      {product.name}
+                    <h2 className="line-clamp-2 font-display text-sm font-semibold leading-snug text-[#09090B]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInspectedProduct(product);
+                          setShowRawDom(false);
+                        }}
+                        className="cursor-pointer rounded text-left transition-colors duration-200 hover:text-zinc-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0]"
+                      >
+                        {product.name}
+                      </button>
                     </h2>
 
-                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-zinc-500">
+                    <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-zinc-600">
                       {product.description}
                     </p>
                   </div>
@@ -203,11 +209,11 @@ export function ProductGrid({
 
                 {/* Price + Standard Retail Actions */}
                 <div className="border-t border-zinc-100 px-4 pb-4 pt-3">
-                  <div className="mb-3 flex items-baseline justify-between">
+                  <div className="mb-3 flex items-baseline justify-between gap-2">
                     <span className="font-mono text-lg font-bold tracking-tight text-[#09090B]">
                       ${product.price.toFixed(2)}
                     </span>
-                    <span className="text-[11px] font-medium text-zinc-400">
+                    <span className="text-[11px] font-medium text-zinc-600">
                       {product.category}
                     </span>
                   </div>
@@ -216,15 +222,15 @@ export function ProductGrid({
                     <button
                       type="button"
                       onClick={() => onAddToCart(product)}
-                      className="inline-flex cursor-pointer items-center justify-center gap-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-[#09090B] transition hover:border-zinc-300 hover:bg-zinc-50"
+                      className="inline-flex h-10 cursor-pointer items-center justify-center gap-1 rounded-xl border border-[#E4E4E7] bg-white px-3 text-xs font-semibold text-[#09090B] transition-colors duration-200 hover:border-zinc-300 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                       Add to Cart
                     </button>
                     <button
                       type="button"
                       onClick={() => onBuyNow(product)}
-                      className="inline-flex cursor-pointer items-center justify-center rounded-xl bg-[#09090B] px-3 py-2 text-xs font-semibold text-white transition hover:bg-zinc-800"
+                      className="inline-flex h-10 cursor-pointer items-center justify-center rounded-xl bg-[#09090B] px-3 text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
                     >
                       Buy Now
                     </button>
@@ -246,10 +252,10 @@ export function ProductGrid({
           onClick={() => setInspectedProduct(null)}
         >
           <div
-            className="w-full max-w-lg overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl"
+            className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border border-[#E4E4E7] bg-white shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative aspect-[16/9] w-full bg-zinc-100">
+            <div className="relative aspect-[4/3] w-full bg-zinc-100">
               <Image
                 src={inspectedProduct.imageUrl}
                 alt={inspectedProduct.imageAlt}
@@ -261,9 +267,9 @@ export function ProductGrid({
                 type="button"
                 aria-label="Close product details"
                 onClick={() => setInspectedProduct(null)}
-                className="absolute right-3 top-3 cursor-pointer rounded-full bg-zinc-950/75 p-2 text-white backdrop-blur-xs hover:bg-zinc-950"
+                className="absolute right-3 top-3 cursor-pointer rounded-full bg-zinc-950/80 p-2 text-white backdrop-blur-xs transition-colors duration-200 hover:bg-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#38BDF8]"
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
 
@@ -337,7 +343,7 @@ export function ProductGrid({
                     onAddToCart(inspectedProduct);
                     setInspectedProduct(null);
                   }}
-                  className="cursor-pointer rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-xs font-semibold text-[#09090B] hover:bg-zinc-50"
+                  className="h-10 cursor-pointer rounded-xl border border-[#E4E4E7] bg-white px-4 text-xs font-semibold text-[#09090B] transition-colors duration-200 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
                 >
                   Add to Cart
                 </button>
@@ -348,7 +354,7 @@ export function ProductGrid({
                     setInspectedProduct(null);
                     onBuyNow(target);
                   }}
-                  className="cursor-pointer rounded-xl bg-[#09090B] px-4 py-2.5 text-xs font-semibold text-white hover:bg-zinc-800"
+                  className="h-10 cursor-pointer rounded-xl bg-[#09090B] px-4 text-xs font-semibold text-white transition-colors duration-200 hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0070E0] focus-visible:ring-offset-1"
                 >
                   Buy Now
                 </button>
